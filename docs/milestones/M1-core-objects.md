@@ -14,7 +14,7 @@
 - [x] **M1.6 `internal/store`.** `ObjectStore` interface (03). Implementations: `Mem` (map + RWMutex), `FS` (sharded `objects/ab/cd/<hex>`, write via temp file + `fsync` + rename, `Has` via stat), `S3` (minio-go; `Has` via `StatObject` with bounded concurrency). Add `store.Open(url)` that parses `mem://`, `fs://path` and `s3://bucket?...`.
 - [x] **M1.7 Store contract tests.** A shared `storetest.Run(t, factory)` suite (put, get, has, idempotent put, not found, concurrent puts of the same id, large object). Run it for Mem and FS in unit tests, and for S3 under `-tags integration` against MinIO.
 - [x] **M1.8 Golden vectors ⛔.** Generate `testdata/golden/` for the cases listed in `10-testing.md`. Add a test that re-encodes the fixtures and compares bytes and ids, with an `UPDATE_GOLDEN=1` regeneration flag. Write a human-readable `testdata/golden/README.md` listing each vector's inputs, hex encoding and id. **Stop and ask the human to review before continuing.**
-- [ ] **M1.9 Fuzz targets.** `FuzzDecodeTree`, `FuzzDecodeChangeset`, `FuzzObjectDecode` (must never panic; any successfully decoded input must re-encode to identical bytes). Wire them into `make fuzz`.
+- [x] **M1.9 Fuzz targets.** `FuzzDecodeTree`, `FuzzDecodeChangeset`, `FuzzObjectDecode` (must never panic; any successfully decoded input must re-encode to identical bytes). Wire them into `make fuzz`.
 
 ## Acceptance criteria
 

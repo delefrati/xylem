@@ -53,6 +53,7 @@ Verified on a fresh `git clone` of 3e549f4: `make tools && make up && make proto
 ## Log
 
 <!-- - YYYY-MM-DD M0.2: skeleton dirs + cobra roots (commit abc1234) -->
+- 2026-10-14 M1.9: FuzzDecodeTree, FuzzDecodeChangeset (byte-identical re-encode), FuzzObjectDecode (content-level re-encode + Verify, since zstd frames are not canonical), all seeded from golden vectors; picked up by make fuzz
 - 2026-10-14 M1.8: golden vectors **approved by the human**; encodings frozen (changes now need an ADR)
 - 2026-10-14 M1.8: golden vectors — 15 vectors (2 blobs, 5 trees, 8 changesets) in testdata/golden with generated, annotated README; test/golden checks bytes+ids (UPDATE_GOLDEN=1 regenerates); all ids cross-checked with Python blake3 and bodies parsed by an independent spec-based Python decoder; awaiting human approval
 - 2026-10-14 M1.7: internal/store/storetest contract suite (put/get, not found, has incl. order+dups, idempotent put, 32 concurrent same-id puts, 64 distinct, 24 MiB object (S3 multipart), canceled ctx); passes for mem, fs and s3 (-tags integration, MinIO); mutation-checked; store coverage 88.7% with integration
