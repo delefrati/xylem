@@ -538,3 +538,60 @@ func TestListingQueries(t *testing.T) {
 		t.Errorf("MainlineRange(≤4, 3) = %v, %v", rows, err)
 	}
 }
+
+func TestImporterTables(t *testing.T) {
+	t.Parallel()
+	s, repo := newStore(t)
+	ctx := t.Context()
+	// GitSHAMap: only changesets with a git sha.
+	a, aCore := row()
+	a.GitSHA = bytes.Repeat([]byte{0xaa}, 20)
+	insert(t, s, repo, a, nil, aCore)
+	b, bCore := row()
+	insert(t, s, repo, b, nil, bCore)
+	m, err := s.GitSHAMap(ctx, repo)
+	var aSHA [20]byte
+	copy(aSHA[:], a.GitSHA)
+	if err != nil || len(m) != 1 || m[aSHA] != a.ID {
+		t.Errorf("GitSHAMap = %v, %v", m, err)
+	}
+
+	// Import state upsert.
+	if _, err := s.GetImportState(ctx, repo, "file:///r", "main"); !errors.Is(err, meta.ErrNotFound) {
+		t.Errorf("missing import state: %v", err)
+	}
+	for _, v := range []byte{1, 2} {
+		var sha [20]byte
+		sha[0] = v
+		if err := s.PutImportState(ctx, repo, "file:///r", "main", sha); err != nil {
+			t.Fatal(err)
+		}
+		if got, err := s.GetImportState(ctx, repo, "file:///r", "main"); err != nil || got != sha {
+			t.Errorf("import state = %x, %v; want %x", got, err, sha)
+		}
+	}
+
+	// Git blobs: duplicates within a batch and across batches are ignored.
+	blob := func(b byte) meta.GitBlob {
+		var sha [20]byte
+		sha[0] = b
+		return meta.GitBlob{GitSHA: sha, BlobID: randomID(), Size: int64(b)}
+	}
+	first := []meta.GitBlob{blob(1), blob(2), blob(1)}
+	if err := s.InsertGitBlobs(ctx, repo, first); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.InsertGitBlobs(ctx, repo, []meta.GitBlob{blob(2), blob(3)}); err != nil {
+		t.Fatal(err)
+	}
+	got, err := s.GetGitBlobs(ctx, repo, [][20]byte{blob(1).GitSHA, blob(3).GitSHA, blob(9).GitSHA})
+	if err != nil || len(got) != 2 || got[blob(1).GitSHA].Size != 1 {
+		t.Errorf("GetGitBlobs = %v, %v", got, err)
+	}
+	if got[blob(1).GitSHA].BlobID != first[0].BlobID && got[blob(1).GitSHA].BlobID != first[2].BlobID {
+		t.Error("git blob mapping lost its blob id")
+	}
+	if err := s.InsertGitBlobs(ctx, repo, nil); err != nil {
+		t.Errorf("empty insert: %v", err)
+	}
+}

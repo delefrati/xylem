@@ -93,6 +93,13 @@ type PathHit struct {
 	Seq         int64
 }
 
+// GitBlob maps a git blob to the Xylem blob holding the same content.
+type GitBlob struct {
+	GitSHA [20]byte
+	BlobID hash.ID
+	Size   int64
+}
+
 // Store is the metadata store. Implementations are safe for concurrent use.
 type Store interface {
 	CreateRepo(ctx context.Context, name string) (RepoID, error)
@@ -138,4 +145,15 @@ type Store interface {
 	// depth ≤ maxDepth and seq < beforeSeq that changed path or anything below
 	// it (04 §Kind 3). path must be non-empty.
 	PathHistoryMainline(ctx context.Context, repo RepoID, ref string, path []byte, maxDepth, beforeSeq int64, limit int) ([]PathHit, error)
+
+	// GitSHAMap returns git commit sha → changeset id for every imported changeset.
+	GitSHAMap(ctx context.Context, repo RepoID) (map[[20]byte]hash.ID, error)
+	// GetImportState returns the last imported git sha for (source, branch),
+	// or ErrNotFound.
+	GetImportState(ctx context.Context, repo RepoID, source, branch string) ([20]byte, error)
+	PutImportState(ctx context.Context, repo RepoID, source, branch string, lastGitSHA [20]byte) error
+	// GetGitBlobs returns the known mappings among shas.
+	GetGitBlobs(ctx context.Context, repo RepoID, shas [][20]byte) (map[[20]byte]GitBlob, error)
+	// InsertGitBlobs records mappings, ignoring ones already present.
+	InsertGitBlobs(ctx context.Context, repo RepoID, blobs []GitBlob) error
 }

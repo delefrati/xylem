@@ -16,6 +16,20 @@ import (
 	"github.com/delefrati/xylem/migrations"
 )
 
+// allVersions returns 1..n for the embedded migrations.
+func allVersions(t *testing.T) []int {
+	t.Helper()
+	ms, err := meta.LoadMigrations(migrations.FS)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var vs []int
+	for _, m := range ms {
+		vs = append(vs, m.Version)
+	}
+	return vs
+}
+
 func TestMigrateFreshAndIdempotent(t *testing.T) {
 	t.Parallel()
 	pool := testutil.NewEmptyDB(t)
@@ -25,8 +39,8 @@ func TestMigrateFreshAndIdempotent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !slices.Equal(applied, []int{1}) {
-		t.Errorf("first Migrate applied %v, want [1]", applied)
+	if want := allVersions(t); !slices.Equal(applied, want) {
+		t.Errorf("first Migrate applied %v, want %v", applied, want)
 	}
 	again, err := meta.Migrate(ctx, pool, migrations.FS, nil)
 	if err != nil || len(again) != 0 {
@@ -41,7 +55,7 @@ func TestMigrateFreshAndIdempotent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := []string{"changeset_files", "changesets", "core_derived", "derived", "import_state", "mainline", "ref_log", "refs", "repos", "schema_migrations"}
+	want := []string{"changeset_files", "changesets", "core_derived", "derived", "git_blobs", "import_state", "mainline", "ref_log", "refs", "repos", "schema_migrations"}
 	if !slices.Equal(tables, want) {
 		t.Errorf("tables = %v, want %v", tables, want)
 	}
@@ -61,12 +75,13 @@ func TestMigrateConcurrent(t *testing.T) {
 	if err := errors.Join(errs...); err != nil {
 		t.Fatal(err)
 	}
-	total := 0
+	var total []int
 	for _, r := range results {
-		total += len(r)
+		total = append(total, r...)
 	}
-	if total != 1 {
-		t.Errorf("concurrent Migrate applied %d migrations in total, want exactly 1: %v", total, results)
+	slices.Sort(total)
+	if want := allVersions(t); !slices.Equal(total, want) {
+		t.Errorf("concurrent Migrate applied %v in total, want each of %v exactly once", total, want)
 	}
 }
 

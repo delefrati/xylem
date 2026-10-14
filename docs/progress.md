@@ -17,6 +17,7 @@ Maintained by the implementing agent. Newest entries first within each section.
 ## Deviations from spec
 
 <!-- - YYYY-MM-DD M2.4: <what changed, why, doc updated: 04-derived-data.md> -->
+- 2026-10-14 M3.4: `migrations/0002_git_blobs.sql` (verbatim from 08) lands with the pipeline, which fills it, rather than in M3.7. The importer talks to the database through new `repo` methods (OpenOrCreate, GitSHAMap, ImportState/SetImportState, GitBlobs/RecordGitBlobs, Changeset), keeping importer → repo (not meta). Blob dedup across workers uses x/sync/singleflight. Blob existence is checked per blob (Has/Put) inside the singleflight rather than in per-commit batches.
 - 2026-10-14 M3.3: mapping details beyond 08: 100664 (old git) maps to FILE; git changes invisible in Xylem (same blob, same mapped mode) are dropped instead of becoming no-op PUTs; type changes involving a submodule map to DELETE (file→gitlink) or PUT (gitlink→file); `git-extra-submodules` lists the gitlink paths each commit touched. Warnings for skipped submodules are emitted (deduplicated per path) by the pipeline from `Mapped.Submodules`.
 - 2026-10-14 M3.2: gitsource rejects sha256 repositories (git_sha is 20 bytes); DiffTree runs one diff-tree process per commit (the importer parallelizes); added LsTree (for verify-import), IsAncestor and FirstParentChain helpers. Commit headers other than tree/parent/author/committer/encoding (gpgsig, mergetag) are not kept.
 - 2026-10-14 M3.1: tests get fixtures through `testutil.GitFixture(t, profile)`, cached in `~/.cache/xylem-fixtures/<hash of generators>/` (atomic rename), so CI needs no `make fixtures` step; `make fixtures` still fills `testdata/fixtures/`. `edge` needs `openssl` (deterministic 11 MiB binary). G204 (subprocess with variable args) is suppressed with `//nolint:gosec` at each git/fixture call site (ADR-010: shelling out to git is the design) rather than in config — for human review.
@@ -88,11 +89,13 @@ Verified on a fresh `git clone` of 3e549f4: `make tools && make up && make proto
 
 <!-- - YYYY-MM-DD: CreateChangeset 10 files on 1k-file tree: p50 X ms, p99 Y ms (M2.9) -->
 
+- 2026-10-14: import branchy (2,000 commits, 5,413 blobs, 7.2 MB): 3.4 s ≈ 595 commits/s (local, mem store, 8 workers, no -race) (M3.4)
 - 2026-10-14: stress 10,000 changesets on a ~1,000-file tree (5.4% merges, 1,155 fast-forwards): created in 15.6–21.3 s (1.6–2.1 ms/changeset over 4 runs; one outlier run right after `make check` took 60.6 s / 6.1 ms), verify --all --objects in 3.4 s, 0 violations (M2.9)
 - 2026-10-14: CreateChangeset 10 files on 1k-file tree: p50 2.0 ms, p99 2.6 ms (local Postgres, mem store, no -race; 13.7 ms p50 under -race) (M2.6)
 ## Log
 
 <!-- - YYYY-MM-DD M0.2: skeleton dirs + cobra roots (commit abc1234) -->
+- 2026-10-14 M3.4: internal/importer pipeline — producer (rev-list, skip mapped), N workers (ReadCommit, DiffTree, blob upload via LRU → git_blobs → cat-file+Put), ordered committer (CreateChangeset AllowRoot/AllowEmpty/explicit committer/TrustSizes); tiny/edge/branchy import with tree-for-tree match vs git ls-tree and verify clean; branchy ~595 commits/s
 - 2026-10-14 M3.3: importer.MapCommit (modes, A/M/T→PUT, D→DELETE, submodules skipped + extra, git-sha/git-encoding extras, exact signatures, `.xylem` paths → ErrUnsupportedPath) and BlobsNeeded; every edge-fixture commit maps to a shape-valid changeset; 97.5% coverage
 - 2026-10-14 M3.2: internal/gitsource — Open (sha1 check), ResolveBranch, RevList (streamed iter.Seq2), CatFilePool (N long-lived cat-file --batch, lazy start, process replaced on stream errors), ReadCommit/ParseCommit, DiffTree (-z --raw --no-renames), LsTree; tests compare against git output on every tiny/edge commit; 80% coverage
 - 2026-10-14 M3.1: scripts/make-fixture-repo.sh (tiny: 10 commits; edge: 27 commits, 2 roots, octopus, side-first merge, file↔symlink↔dir, exec flips, odd paths, 11 MiB binary, empty commit, ISO-8859-1 header, submodule add/move/remove) and scripts/genrepo (branchy: 2,000 commits, 81 merges via fast-import in ~1.6 s); all deterministic and pinned by sha; `make fixtures`; testutil.GitFixture/CopyFixture/Git
