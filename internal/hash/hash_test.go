@@ -252,3 +252,22 @@ func TestParsePrefixRangeMatchesHasPrefix(t *testing.T) {
 		}
 	}
 }
+
+func TestTextRoundTrip(t *testing.T) {
+	t.Parallel()
+	id := Sum(nil, []byte("x"))
+	text, err := id.MarshalText()
+	if err != nil || string(text) != id.String() {
+		t.Fatalf("MarshalText = %s, %v", text, err)
+	}
+	var got ID
+	if err := got.UnmarshalText(text); err != nil || got != id {
+		t.Errorf("UnmarshalText = %v, %v", got, err)
+	}
+	if err := got.UnmarshalText(nil); err != nil || !got.IsZero() {
+		t.Errorf("empty text: %v, %v", got, err)
+	}
+	if err := got.UnmarshalText([]byte("zz")); err == nil {
+		t.Error("bad text accepted")
+	}
+}

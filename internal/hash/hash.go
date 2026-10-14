@@ -117,3 +117,22 @@ func ParsePrefix(s string) (lo, hi []byte, err error) {
 	}
 	return lo, nil, nil // prefix was all 'f': no upper bound
 }
+
+// MarshalText encodes id as 64 hex characters (for JSON and config files).
+func (id ID) MarshalText() ([]byte, error) {
+	return []byte(id.String()), nil
+}
+
+// UnmarshalText parses 64 hex characters; empty text is the zero id.
+func (id *ID) UnmarshalText(text []byte) error {
+	if len(text) == 0 {
+		*id = ID{}
+		return nil
+	}
+	parsed, err := ParseHex(string(text))
+	if err != nil {
+		return err
+	}
+	*id = parsed
+	return nil
+}

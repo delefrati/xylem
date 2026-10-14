@@ -7,7 +7,7 @@
 ## Tasks
 
 - [x] **M5.1 CLI skeleton.** Cobra command tree for every MVP command in 06 (unimplemented ones print "not yet implemented (M6)"). Add global flags, exit codes, `--json` plumbing, and a gRPC connection factory (`host:port`, with `unix://` reserved for M8).
-- [ ] **M5.2 Workspace.** `client.Workspace` with `Init(dir, cfg)` and `Open(dir)` (walks up from cwd to find `.xylem/`). Atomic `state.json` writes and `flock` on `.xylem/lock` for mutating commands. Load and save `config.toml`.
+- [x] **M5.2 Workspace.** `client.Workspace` with `Init(dir, cfg)` and `Open(dir)` (walks up from cwd to find `.xylem/`). Atomic `state.json` writes and `flock` on `.xylem/lock` for mutating commands. Load and save `config.toml`.
 - [ ] **M5.3 Local object cache.** Sharded files under `.xylem/objects`, verify on insert, size accounting, LRU eviction by atime, and `xy cache stats|gc`.
 - [ ] **M5.4 Fetcher.** Scoped breadth-first tree fetch, then blob fetch, with batching (≤ 1024), 8 concurrent streams, and progress reporting to stderr on a TTY. Sparse scope helper (`InScope(path)`) with tests for prefix and under semantics.
 - [ ] **M5.5 Dirstate.** Format per 06 (`XYLDS1` header, gob, written-at timestamp), atomic save, and rebuild-by-hashing when missing.
