@@ -191,3 +191,13 @@ func TestImportRejectsReservedPath(t *testing.T) {
 		t.Errorf("%d commits imported before the failure, want 1", len(shaMap))
 	}
 }
+
+// reopen returns a new Repo over env's stores, with cold caches.
+func reopen(t *testing.T, env *repotest.Env) *repo.Repo {
+	t.Helper()
+	r, err := repo.Open(context.Background(), env.Meta, env.Objects, "default", repo.Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return r
+}
