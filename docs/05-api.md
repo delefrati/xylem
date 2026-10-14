@@ -30,7 +30,7 @@ Merge conflicts are **not** errors. `Land` and `Rebase` return them in the respo
 ```proto
 syntax = "proto3";
 package xylem.v1;
-option go_package = "github.com/OWNER/xylem/gen/xylem/v1;xylemv1";
+option go_package = "github.com/delefrati/xylem/gen/xylem/v1;xylemv1";
 
 import "google/protobuf/timestamp.proto";
 
@@ -82,7 +82,7 @@ message PageRequest { uint32 page_size = 1; string page_token = 2; }
 ```proto
 syntax = "proto3";
 package xylem.v1;
-option go_package = "github.com/OWNER/xylem/gen/xylem/v1;xylemv1";
+option go_package = "github.com/delefrati/xylem/gen/xylem/v1;xylemv1";
 
 // Implemented identically by server, cache and daemon tiers.
 service ObjectService {
@@ -116,7 +116,7 @@ message PutObjectsResponse { uint32 stored = 1; uint32 already_present = 2; }
 ```proto
 syntax = "proto3";
 package xylem.v1;
-option go_package = "github.com/OWNER/xylem/gen/xylem/v1;xylemv1";
+option go_package = "github.com/delefrati/xylem/gen/xylem/v1;xylemv1";
 
 import "xylem/v1/common.proto";
 
@@ -236,7 +236,7 @@ message MergeBaseResponse { repeated bytes ids = 1; }
 ```proto
 syntax = "proto3";
 package xylem.v1;
-option go_package = "github.com/OWNER/xylem/gen/xylem/v1;xylemv1";
+option go_package = "github.com/delefrati/xylem/gen/xylem/v1;xylemv1";
 
 import "xylem/v1/common.proto";
 

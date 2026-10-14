@@ -6,7 +6,7 @@
 
 ## Tasks
 
-- [ ] **M0.1 Module path and name.** If the human hasn't given a GitHub owner, ask once. Replace `OWNER` in every doc and in `go_package` options. Create `go.mod` (`module github.com/<owner>/xylem`, latest stable Go).
+- [x] **M0.1 Module path and name.** If the human hasn't given a GitHub owner, ask once. Replace `OWNER` in every doc and in `go_package` options. Create `go.mod` (`module github.com/<owner>/xylem`, latest stable Go).
 - [ ] **M0.2 Skeleton.** Create the directory layout from `02-architecture.md` with a `doc.go` (package comment) in each `internal/*` package. Add `cmd/xy` and `cmd/xylemd` with cobra roots and a `version` subcommand that prints version, commit and Go version (ldflags).
 - [ ] **M0.3 Tooling.** Add `Makefile` and `tools.mk` with pinned versions of buf, golangci-lint, grpcurl, `protoc-gen-go` and `protoc-gen-go-grpc` installed into `./bin` (`make proto` puts `./bin` first on `PATH` so buf finds the plugins). Implement the targets listed in `11-dev-environment.md`. Targets for later milestones can be stubs that print "not yet implemented (Mx)" and exit 0.
 - [ ] **M0.4 Local services.** Add `deploy/docker-compose.yml` exactly as specified. `make up` must block until both services are healthy and the bucket exists (`docker compose up -d --wait`, then wait for `minio-init` to exit 0). Pin image tags.

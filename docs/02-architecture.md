@@ -79,7 +79,7 @@ xylem/
 ├── CLAUDE.md                  # agent instructions
 ├── README.md
 ├── Makefile
-├── go.mod                     # module github.com/OWNER/xylem
+├── go.mod                     # module github.com/delefrati/xylem
 ├── buf.yaml / buf.gen.yaml
 ├── proto/xylem/v1/           # *.proto (source of truth for the API)
 ├── gen/xylem/v1/             # generated Go code (committed)
