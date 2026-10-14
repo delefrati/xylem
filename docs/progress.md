@@ -6,7 +6,7 @@ Maintained by the implementing agent. Newest entries first within each section.
 
 - **Current milestone:** M1 — Core objects and stores
 - **Last checkpoint approved by human:** M1.8 golden vectors — 2026-10-14 (M0 approved 2026-10-14)
-- **Blocked on:** —
+- **Blocked on:** human review of M1 (⛔ end of milestone)
 
 ## Open questions (for the human)
 
@@ -26,6 +26,19 @@ Maintained by the implementing agent. Newest entries first within each section.
 - 2026-10-14 M0.2: client CLI lives in `cmd/xy` (M0.2, binary name), not `cmd/xylem` as the layout tree said; doc updated: 02-architecture.md
 
 ## Milestone results
+
+### M1 — 2026-10-14
+
+Verified on 21a4511: `make test && make test-integration && make fuzz` → exit 0; coverage command from the milestone file below.
+
+| Acceptance criterion | Evidence | Result |
+|---|---|---|
+| Golden vectors approved by the human (record the date) | Approved 2026-10-14 (Q-003); 15 vectors in `testdata/golden`, ids cross-checked with Python `blake3`, bodies parsed by an independent spec-based decoder | ✅ |
+| `make fuzz` runs 30 s per target with no crashes | FuzzDecodeChangeset 3.09M execs, FuzzDecodeTree 3.22M, FuzzObjectDecode 3.32M, FuzzValidPath 3.55M; all PASS | ✅ |
+| Store contract suite passes for mem, fs and s3 | `storetest.Run`: 9 subtests each for Mem, FS (unit) and S3 against MinIO (`-tags integration`, incl. 24 MiB multipart) | ✅ |
+| Coverage of hash, paths, object, changeset ≥ 90% | hash 100.0%, paths 100.0%, object 98.4%, changeset 99.4% (store 88.7% incl. S3, not gated) | ✅ |
+
+**Summary:** the hash-affecting encodings (ids, headers, trees, changesets) are implemented exactly as specified and frozen by approved golden vectors; decoders accept only canonical input and are fuzzed; the three object stores share one contract suite. Deviations to note: `internal/canon` package added; the object mutation property was reworded to content integrity (zstd frames are not canonical); `ValidateShape`/`Summary` have small additions forced by proto and Postgres constraints. None is hash-affecting.
 
 ### M0 — 2026-10-14
 
