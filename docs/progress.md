@@ -6,7 +6,7 @@ Maintained by the implementing agent. Newest entries first within each section.
 
 - **Current milestone:** M4 — Read API and parity
 - **Last checkpoint approved by human:** M3 — 2026-10-14 (M2, M1, golden vectors and M0 approved 2026-10-14)
-- **Blocked on:** —
+- **Blocked on:** human review of M4 (⛔ end of milestone)
 
 ## Open questions (for the human)
 
@@ -50,6 +50,19 @@ Maintained by the implementing agent. Newest entries first within each section.
 - 2026-10-14 M0.2: client CLI lives in `cmd/xy` (M0.2, binary name), not `cmd/xylem` as the layout tree said; doc updated: 02-architecture.md
 
 ## Milestone results
+
+### M4 — 2026-10-14
+
+Verified on 9abceb2: `make up && make check && make parity` → exit 0; `bin/xylemd parity --git testdata/fixtures/branchy --server localhost:7400 --repo branchy` (live server on the dev DB) → all checks PASS; `buf breaking --against .git#ref=624301c` (the M0 protos) → no breaking changes (protos unchanged since M0).
+
+| Acceptance criterion | Evidence | Result |
+|---|---|---|
+| Parity 100% on tiny and edge for all checks | `make parity`: every check 100% on both (tiny 10 commits, edge 27, all sampled) | ✅ |
+| branchy: 100% for tree, log, path log, diff names, merge-base, is-ancestor, read file; ≥ 99% blame | 100% on all nine checks, incl. diff content 8,597/8,597 and blame 2,133/2,133 lines | ✅ |
+| Blame warm latency < 50 ms on a branchy file (report cold and warm) | cold p50 15–46 ms, warm p50 1.8–5.8 ms | ✅ |
+| `buf breaking` passes against the M0 protos | `buf breaking --against .git#ref=624301c…` OK | ✅ |
+
+**Summary:** `xylemd server` answers every read RPC — revisions, changesets, refs, directory listings, file reads, diffs (with hunks), first-parent logs (repo and path), blame, merge-base and is-ancestor — and the parity suite proves each one equal to git on all fixtures. Worth a look: blame parity skips lines git attributes through whole-file renames (git can't turn that off; Xylem doesn't follow renames per 04) — written into 10-testing.md; diff uses linear-space Myers with a cost cap; recursive ListDirectory lists files only; Diff's 100k scan limit returns ResourceExhausted (no page token in the proto); the 10 s per-page timer is deferred to M9.
 
 ### M3 — 2026-10-14
 
