@@ -16,6 +16,7 @@ Maintained by the implementing agent. Newest entries first within each section.
 ## Deviations from spec
 
 <!-- - YYYY-MM-DD M2.4: <what changed, why, doc updated: 04-derived-data.md> -->
+- 2026-10-14 M1.4: 10-testing.md object property "any single-byte mutation of a stored frame fails Verify" is unachievable with standard zstd (e.g. raising the window descriptor decodes to identical bytes). Reworded to "no mutation verifies with different content", which is the integrity guarantee; doc updated: 10-testing.md
 - 2026-10-14 M0.4: **ADR-020 (Accepted 2026-10-14)** — upstream `minio/minio`/`minio/mc` images are no longer pullable; switched to pinned `pgsty/minio`/`pgsty/mc`.
 - 2026-10-14 M0.4: `make up` runs `docker compose run --rm minio-init` instead of `compose wait` (which can't see already-exited one-shot containers); doc updated: 11-dev-environment.md
 - 2026-10-14 M0.4: `make reset-db` description said the `xy` DB; it's `xylem`; doc updated: 11-dev-environment.md
@@ -49,6 +50,7 @@ Verified on a fresh `git clone` of 3e549f4: `make tools && make up && make proto
 ## Log
 
 <!-- - YYYY-MM-DD M0.2: skeleton dirs + cobra roots (commit abc1234) -->
+- 2026-10-14 M1.4: internal/object tree encoding — Mode, Entry, Tree, EncodeTree (validates order/names/modes, rejects size on TREE), DecodeTree (canonical only: minimal varints, no trailing bytes, bounded prealloc), Lookup; hand-computed layout test; backfilled M1.3 mutation property; 98.7% coverage
 - 2026-10-14 M1.3: internal/object framing — Kind, Header, ID, Encode/Decode/DecodeVerify/Verify; shared zstd level-3 encoder/decoder (concurrent-safe, internally pooled), 64 MiB + 1 KiB decode cap (bomb-tested incl. streamed frames), strict canonical header parsing; klauspost/compress v1.20.1; 96.7% coverage
 - 2026-10-14 M1.2: internal/paths — ValidName/ValidPath (rule-specific errors), Split/Join/Parent/Base, IsUnder (dir itself counts; root = empty), Compare, DirPrefixRange (strictly below dir, nil = open); 100% coverage; FuzzValidPath 30 s clean
 - 2026-10-14 M1.1: internal/hash — ID, Sum, String/Short/IsZero, Compare, ParseHex, ParsePrefix (lo/hi byte range); blake3 v0.2.4, go-cmp v0.7.0; 100% coverage, BLAKE3 official vectors

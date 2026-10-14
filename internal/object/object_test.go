@@ -265,3 +265,39 @@ func TestStoredIsSingleFrameAtLevel3(t *testing.T) {
 		t.Errorf("zstd level 3 maps to %v, want SpeedDefault", zstd.EncoderLevelFromZstd(zstdLevel))
 	}
 }
+
+// 10-testing.md §Property tests: a single-byte mutation of a stored frame never
+// passes Verify with different content. Some zstd header bits don't affect the
+// decoded bytes (e.g. a larger window descriptor, the "unused" descriptor bit);
+// those mutations may verify, but only because the content is unchanged.
+func TestVerifyRejectsContentChangingMutations(t *testing.T) {
+	t.Parallel()
+	bodies := [][]byte{
+		{},
+		[]byte("hello\n"),
+		bytes.Repeat([]byte("compressible "), 200),
+	}
+	for _, body := range bodies {
+		id, stored := Encode(KindBlob, body)
+		rejected, total := 0, 0
+		for i := range stored {
+			for _, flip := range []byte{0x01, 0x02, 0x04, 0x08, 0x10, 0x20, 0x40, 0x80, 0xff} {
+				total++
+				mutated := bytes.Clone(stored)
+				mutated[i] ^= flip
+				kind, got, err := DecodeVerify(id, mutated)
+				if err != nil {
+					rejected++
+					continue
+				}
+				if kind != KindBlob || !bytes.Equal(got, body) {
+					t.Errorf("body %d bytes: stored[%d] ^= %#x verified with different content", len(body), i, flip)
+				}
+			}
+		}
+		// Sanity: almost every mutation is detected.
+		if rejected < total*9/10 {
+			t.Errorf("body %d bytes: only %d of %d mutations rejected", len(body), rejected, total)
+		}
+	}
+}

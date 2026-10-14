@@ -27,7 +27,7 @@ The test fails if the encoding changes. Regenerating requires `UPDATE_GOLDEN=1` 
 
 ## Property and fuzz tests (must exist)
 
-- `object`: `Decode(Encode(x)) == x`; any single-byte mutation of a stored frame fails `Verify`.
+- `object`: `Decode(Encode(x)) == x`; no single-byte mutation of a stored frame passes `Verify` with different content. (A few zstd header mutations, such as a larger window descriptor, decode to identical bytes and therefore still verify; integrity is about content, not frame bytes.)
 - `treeops`: for random sequences of change lists, incremental `Apply` gives the same root id as building the full tree from scratch (brute force).
 - `diff`: applying `diff(a, b)` to `a` yields `b`; the edit script is minimal on small random inputs (compare with a DP LCS for length ≤ 50).
 - `derived/core`: jump-pointer `ancestorAtDepth` equals a naive walk on random trees, depth ≤ 10k.
