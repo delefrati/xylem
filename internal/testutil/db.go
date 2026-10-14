@@ -13,6 +13,9 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+
+	"github.com/delefrati/xylem/internal/meta"
+	"github.com/delefrati/xylem/migrations"
 )
 
 // DefaultTestDBURL is the admin connection used to create test databases: the
@@ -92,4 +95,69 @@ func createDB(t testing.TB, template string) *pgxpool.Pool {
 func NewEmptyDB(t testing.TB) *pgxpool.Pool {
 	t.Helper()
 	return createDB(t, "")
+}
+
+// templateLockKey is the pg_advisory_lock key that serializes template
+// creation across concurrently running test binaries.
+const templateLockKey int64 = 0x78796c656d2d746d // "xylem-tm"
+
+// NewDB returns a pool on a fresh database with all migrations applied,
+// dropped when the test ends. It clones a template database named after the
+// migrations' fingerprint (10-testing.md §Database tests), so it takes
+// milliseconds and tests can run in parallel.
+func NewDB(t testing.TB) *pgxpool.Pool {
+	t.Helper()
+	return createDB(t, ensureTemplate(t))
+}
+
+// ensureTemplate creates xylem_tmpl_<fingerprint> if missing. It is built
+// under another name and renamed when complete, so a crash never leaves a
+// half-migrated template behind. Templates are never dropped.
+func ensureTemplate(t testing.TB) string {
+	t.Helper()
+	ms, err := meta.LoadMigrations(migrations.FS)
+	if err != nil {
+		t.Fatal(err)
+	}
+	name := "xylem_tmpl_" + meta.Fingerprint(ms)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancel()
+	conn := adminConn(t, ctx)
+	defer func() { _ = conn.Close(ctx) }()
+	if _, err := conn.Exec(ctx, "SELECT pg_advisory_lock($1)", templateLockKey); err != nil {
+		t.Fatalf("locking template creation: %v", err)
+	}
+	defer func() { _, _ = conn.Exec(ctx, "SELECT pg_advisory_unlock($1)", templateLockKey) }()
+
+	var exists bool
+	if err := conn.QueryRow(ctx, "SELECT EXISTS (SELECT 1 FROM pg_database WHERE datname = $1)", name).Scan(&exists); err != nil {
+		t.Fatalf("checking template database: %v", err)
+	}
+	if exists {
+		return name
+	}
+
+	building := pgx.Identifier{name + "_building"}.Sanitize()
+	for _, stmt := range []string{
+		"DROP DATABASE IF EXISTS " + building + " WITH (FORCE)",
+		"CREATE DATABASE " + building,
+	} {
+		if _, err := conn.Exec(ctx, stmt); err != nil {
+			t.Fatalf("creating template database: %v", err)
+		}
+	}
+	pool, err := pgxpool.New(ctx, withDatabase(t, AdminURL(), name+"_building"))
+	if err != nil {
+		t.Fatalf("opening template database: %v", err)
+	}
+	_, err = meta.Migrate(ctx, pool, migrations.FS, nil)
+	pool.Close()
+	if err != nil {
+		t.Fatalf("migrating template database: %v", err)
+	}
+	if _, err := conn.Exec(ctx, "ALTER DATABASE "+building+" RENAME TO "+pgx.Identifier{name}.Sanitize()); err != nil {
+		t.Fatalf("finishing template database: %v", err)
+	}
+	return name
 }

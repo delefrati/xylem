@@ -39,7 +39,7 @@ The test fails if the encoding changes. Regenerating requires `UPDATE_GOLDEN=1` 
 `internal/testutil.NewDB(t)`:
 1. Connects to `XYLEM_TEST_DB_URL` (default `postgres://xylem:xylem@localhost:54329/postgres?sslmode=disable`).
 2. Ensures a template database named `xylem_tmpl_<first 12 hex of the hash of all migration files>` exists with migrations applied. It is created under `pg_advisory_lock` (because `go test ./...` runs package binaries in parallel), with create-if-missing semantics, and never dropped, so a new migration simply yields a new template name.
-3. Per test, runs `CREATE DATABASE t_<random> TEMPLATE xylem_template` and drops it in `t.Cleanup`.
+3. Per test, runs `CREATE DATABASE t_<random> TEMPLATE xylem_tmpl_<…>` and drops it in `t.Cleanup`.
 
 This takes milliseconds per test and gives full isolation, so tests can run with `t.Parallel()`.
 

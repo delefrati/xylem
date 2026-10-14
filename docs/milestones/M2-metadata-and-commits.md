@@ -7,7 +7,7 @@
 ## Tasks
 
 - [x] **M2.1 Migrations.** Add `migrations/0001_init.sql` (the schema from 03, verbatim unless a bug is found; if so, update 03 too). Add an embedded runner with a `schema_migrations` table, one transaction per file, and an advisory lock so concurrent `migrate` calls are safe. Wire up `xylemd migrate`.
-- [ ] **M2.2 Test DB helper.** `testutil.NewDB(t)` using the template-database approach from 10.
+- [x] **M2.2 Test DB helper.** `testutil.NewDB(t)` using the template-database approach from 10.
 - [ ] **M2.3 `internal/meta`.** Define a `Store` interface and a pgx implementation (pool via `pgxpool`):
   - `InsertChangeset(ctx, ChangesetRow, []FileRow, CoreRow) (seq int64, inserted bool, error)` (single tx; COPY for > 1000 file rows)
   - `GetChangesets(ctx, repo, ids)`, `GetCore(ctx, repo, ids)` (batch), `ResolvePrefix(ctx, repo, lo, hi, limit)`, `GetByGitSHA`
