@@ -1,0 +1,114 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Keep in sync with deploy/docker-compose.yml (ADR-020).
+  MINIO_IMAGE: pgsty/minio:RELEASE.2026-08-04T00-00-00Z
+  MC_IMAGE: pgsty/mc:RELEASE.2026-09-16T00-00-00Z
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+      - id: tools
+        uses: actions/cache@v6
+        with:
+          path: bin
+          key: tools-${{ runner.os }}-${{ hashFiles('go.mod', 'tools.mk') }}
+      - if: steps.tools.outputs.cache-hit != 'true'
+        run: make tools
+      - run: make lint
+
+  unit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+      - run: make test GOTESTFLAGS=-race
+
+  integration:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17.11
+        env:
+          POSTGRES_USER: xylem
+          POSTGRES_PASSWORD: xylem
+          POSTGRES_DB: xylem
+        ports: ["54329:5432"]
+        options: >-
+          --health-cmd "pg_isready -U xylem"
+          --health-interval 2s
+          --health-retries 30
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+      # Service containers can't pass a command, so MinIO starts in a step.
+      - name: Start MinIO
+        run: |
+          docker run -d --name minio -p 59000:9000 \
+            -e MINIO_ROOT_USER=xylem -e MINIO_ROOT_PASSWORD=xylemxylem \
+            --health-cmd "mc ready local" --health-interval 2s --health-retries 30 \
+            "$MINIO_IMAGE" server /data
+          for _ in $(seq 60); do
+            [ "$(docker inspect -f '{{.State.Health.Status}}' minio)" = healthy ] && exit 0
+            sleep 1
+          done
+          docker logs minio; exit 1
+      - name: Create bucket
+        run: |
+          docker run --rm --network host --entrypoint sh "$MC_IMAGE" -c \
+            "mc alias set local http://localhost:59000 xylem xylemxylem && mc mb -p local/xylem-objects"
+      - run: make test-integration GOTESTFLAGS=-race
+
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0 # git describe for the version string
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+      - run: make build
+      - run: bin/xy version && bin/xylemd version
+
+  proto:
+    name: proto freshness
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+      - id: tools
+        uses: actions/cache@v6
+        with:
+          path: bin
+          key: tools-${{ runner.os }}-${{ hashFiles('go.mod', 'tools.mk') }}
+      - if: steps.tools.outputs.cache-hit != 'true'
+        run: make tools
+      - run: make proto
+      - name: Generated code is committed and up to date
+        run: |
+          git status --porcelain
+          test -z "$(git status --porcelain)"
