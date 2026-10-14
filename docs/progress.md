@@ -17,6 +17,7 @@ Maintained by the implementing agent. Newest entries first within each section.
 ## Deviations from spec
 
 <!-- - YYYY-MM-DD M2.4: <what changed, why, doc updated: 04-derived-data.md> -->
+- 2026-10-14 M4.6: diff algorithm choice — linear-space Myers (bisect at the middle of an optimal path), minimal edit scripts, with a per-region cost cap (MaxCost = 16,384 edits → wholesale replacement) instead of a 50k-lines-per-side cap; regions with no common line skip the search. Hunks follow git's merging rule (changes ≤ 2×context apart share a hunk) and "\\ No newline at end of file" markers; verified against `git diff --no-index`.
 - 2026-10-14 M4.5: recursive ListDirectory returns files only (not directory entries), named by repository-relative path, like `git ls-tree -r --full-tree`; page tokens pin the directory's tree id so pages stay consistent if the revision moves; read RPCs default to revision "main". Added treeops.WalkFiles/ComparePathsDFS (resumable DFS) for reuse by the parity suite and client.
 - 2026-10-14 M4.4: GetChangesets returns NotFound if any requested id is unknown (the response has no "missing" field); ResolveRevision requires a revision (no default); UpdateRef records the actor as `rpc:<request id>` until M9 auth; `on_mainline` refers to main.
 - 2026-10-14 M4.3: GetObjects packs objects up to ~1 MiB per message (05 §Conventions, the wire contract) rather than the ~4 MiB in the M4.3 task text; frames larger than a quarter of --object-cache-bytes are not cached; ObjectService checks that the repo exists (objects themselves are shared across repos in the MVP).
@@ -116,6 +117,7 @@ Verified on a fresh `git clone` of 3e549f4: `make tools && make up && make proto
 ## Log
 
 <!-- - YYYY-MM-DD M0.2: skeleton dirs + cobra roots (commit abc1234) -->
+- 2026-10-14 M4.6: internal/diff — Lines, IsBinary (NUL in first 8 KiB), Diff (Myers, interned lines), Hunks (unified, N context, git-compatible headers), Apply; property tests: minimal vs DP LCS (3,000 random cases ≤ 50 lines), Apply(Hunks(a,b)) == b for 8,000 cases incl. missing final newlines; 99.1% coverage
 - 2026-10-14 M4.5: ListDirectory (non-recursive by name; recursive DFS over files with full paths; page_size 100/max 1000; opaque tree-pinned tokens) and ReadFile (1 MiB chunks, metadata in the first message, directories → InvalidArgument); tested on the imported edge fixture against git ls-tree/cat-file
 - 2026-10-14 M4.4: ResolveRevision, GetChangesets (request order, ≤1000, include_changes, on_mainline via batched mainline lookup), ListRefs, UpdateRef (admin semantics); internal/server/convert.go (modes, ops, signatures with nanos = 0 enforced, changes, changesets) with round-trip tests; repo.Changesets/MainlineDepths/ListRefs
 - 2026-10-14 M4.3: ObjectService GetObjects (≤1024 ids, 16 parallel reads, byte-bounded LRU of stored frames, ~1 MiB packing, large objects alone, missing in the final message) and HasObjects (cache first, request order); PutObjects → Unimplemented until M6
