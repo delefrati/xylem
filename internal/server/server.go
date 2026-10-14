@@ -44,6 +44,9 @@ type Config struct {
 	ObjectCacheBytes int64
 	// Ready reports whether dependencies are reachable (for /readyz).
 	Ready func(ctx context.Context) error
+	// MaxDiffEntries bounds the tree entries one Diff may scan (default
+	// DefaultMaxDiffEntries); beyond it Diff fails with ResourceExhausted.
+	MaxDiffEntries int
 }
 
 // Server implements RepoService, ObjectService and WriteService.

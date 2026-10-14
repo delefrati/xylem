@@ -15,6 +15,7 @@ import (
 
 	xylemv1 "github.com/delefrati/xylem/gen/xylem/v1"
 	"github.com/delefrati/xylem/internal/hash"
+	"github.com/delefrati/xylem/internal/object"
 	"github.com/delefrati/xylem/internal/repo"
 	"github.com/delefrati/xylem/internal/repo/repotest"
 	"github.com/delefrati/xylem/internal/server"
@@ -36,9 +37,13 @@ func startServer(t *testing.T) *clients {
 	return startServerFor(t, env)
 }
 
-func startServerFor(t *testing.T, env *repotest.Env) *clients {
+func startServerFor(t *testing.T, env *repotest.Env, tweak ...func(*server.Config)) *clients {
 	t.Helper()
-	srv := server.New(server.Config{Meta: env.Meta, Objects: env.Objects, RepoOptions: repo.Options{Now: repotest.Clock}, ObjectCacheBytes: 64 << 20})
+	cfg := server.Config{Meta: env.Meta, Objects: env.Objects, RepoOptions: repo.Options{Now: repotest.Clock}, ObjectCacheBytes: 64 << 20}
+	for _, f := range tweak {
+		f(&cfg)
+	}
+	srv := server.New(cfg)
 	g := srv.NewGRPCServer()
 	lis, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
@@ -86,4 +91,9 @@ func TestRepoResolutionAndHeaders(t *testing.T) {
 	if all, _ := c.Repo.ListRefs(ctx, &xylemv1.ListRefsRequest{Repo: "default"}); len(all.Refs) != 3 {
 		t.Errorf("ListRefs(all) = %d refs", len(all.Refs))
 	}
+}
+
+func decodeBlob(stored []byte) ([]byte, error) {
+	_, body, err := object.Decode(stored)
+	return body, err
 }
