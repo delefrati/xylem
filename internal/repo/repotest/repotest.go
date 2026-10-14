@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgxpool"
+
 	"github.com/delefrati/xylem/internal/changeset"
 	"github.com/delefrati/xylem/internal/hash"
 	"github.com/delefrati/xylem/internal/meta"
@@ -31,16 +33,33 @@ func New(t testing.TB) *repo.Repo {
 // NewWithMeta is New that also returns the meta store.
 func NewWithMeta(t testing.TB) (*repo.Repo, *meta.PG) {
 	t.Helper()
+	env := NewEnv(t, store.NewMem())
+	return env.Repo, env.Meta
+}
+
+// Env exposes everything behind a test Repo, for tests that inspect or tamper
+// with stored data.
+type Env struct {
+	Repo    *repo.Repo
+	Meta    *meta.PG
+	Pool    *pgxpool.Pool
+	Objects store.ObjectStore
+}
+
+// NewEnv is New with a caller-chosen object store.
+func NewEnv(t testing.TB, objs store.ObjectStore) *Env {
+	t.Helper()
 	ctx := context.Background()
-	m := meta.NewPG(testutil.NewDB(t))
+	pool := testutil.NewDB(t)
+	m := meta.NewPG(pool)
 	if _, err := m.CreateRepo(ctx, "default"); err != nil {
 		t.Fatal(err)
 	}
-	r, err := repo.Open(ctx, m, store.NewMem(), "default", repo.Options{Now: Clock})
+	r, err := repo.Open(ctx, m, objs, "default", repo.Options{Now: Clock})
 	if err != nil {
 		t.Fatal(err)
 	}
-	return r, m
+	return &Env{Repo: r, Meta: m, Pool: pool, Objects: objs}
 }
 
 // Put stores content as a blob in r's object store and returns a PUT change.

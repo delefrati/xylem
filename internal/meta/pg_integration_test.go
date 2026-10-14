@@ -479,3 +479,62 @@ func TestPathHistoryMainline(t *testing.T) {
 		t.Error("empty path accepted")
 	}
 }
+
+func TestListingQueries(t *testing.T) {
+	t.Parallel()
+	s, repo := newStore(t)
+	ctx := t.Context()
+	c := chain(t, s, repo, 7, func(i int) []meta.FileRow {
+		return []meta.FileRow{put(fmt.Sprint("f", i)), put(fmt.Sprint("a/g", i))}
+	})
+	// ListChangesets pages in seq order.
+	var seen []hash.ID
+	after := int64(math.MinInt64)
+	for {
+		page, err := s.ListChangesets(ctx, repo, after, 3)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(page) == 0 {
+			break
+		}
+		for _, r := range page {
+			seen = append(seen, r.ID)
+		}
+		after = page[len(page)-1].Seq
+	}
+	for i := range c {
+		if seen[i] != c[i].ID {
+			t.Fatalf("ListChangesets order differs at %d", i)
+		}
+	}
+	if sample, err := s.SampleChangesets(ctx, repo, 4); err != nil || len(sample) != 4 {
+		t.Errorf("SampleChangesets = %d, %v", len(sample), err)
+	}
+	files, err := s.FilesFor(ctx, repo, []hash.ID{c[1].ID, c[4].ID, randomID()})
+	if err != nil || len(files) != 2 || len(files[c[4].ID]) != 2 || string(files[c[4].ID][0].Path) != "a/g4" {
+		t.Errorf("FilesFor = %v, %v", files, err)
+	}
+
+	admin := meta.RefLogEntry{Actor: "t", Reason: "admin"}
+	for _, name := range []string{"main", "release/2", "release/1"} {
+		if _, err := s.CreateRef(ctx, repo, name, c[6].ID, nil, admin); err != nil {
+			t.Fatal(err)
+		}
+	}
+	refs, err := s.ListRefs(ctx, repo, "release/")
+	if err != nil || len(refs) != 2 || refs[0].Name != "release/1" || refs[1].Name != "release/2" {
+		t.Errorf("ListRefs(release/) = %v, %v", refs, err)
+	}
+	if all, _ := s.ListRefs(ctx, repo, ""); len(all) != 3 {
+		t.Errorf("ListRefs() = %d refs", len(all))
+	}
+
+	if _, err := s.CASRef(ctx, repo, "main", c[6].ID, c[6].ID, meta.MainlineUpdate{Rows: mainlineRows(c, 0)}, admin); err != nil {
+		t.Fatal(err)
+	}
+	rows, err := s.MainlineRange(ctx, repo, "main", 4, 3)
+	if err != nil || len(rows) != 3 || rows[0].Depth != 4 || rows[2].Depth != 2 || rows[0].ID != c[4].ID {
+		t.Errorf("MainlineRange(≤4, 3) = %v, %v", rows, err)
+	}
+}

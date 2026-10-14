@@ -111,8 +111,16 @@ type Store interface {
 	ResolvePrefix(ctx context.Context, repo RepoID, lo, hi []byte, limit int) ([]hash.ID, error)
 	GetByGitSHA(ctx context.Context, repo RepoID, sha []byte) (hash.ID, error)
 	ChangesetFiles(ctx context.Context, repo RepoID, id hash.ID) ([]FileRow, error)
+	// FilesFor returns the file rows of several changesets, each ordered by path.
+	FilesFor(ctx context.Context, repo RepoID, ids []hash.ID) (map[hash.ID][]FileRow, error)
+	// ListChangesets returns up to limit changesets with seq > afterSeq, by seq.
+	ListChangesets(ctx context.Context, repo RepoID, afterSeq int64, limit int) ([]ChangesetRow, error)
+	// SampleChangesets returns up to n changesets chosen at random.
+	SampleChangesets(ctx context.Context, repo RepoID, n int) ([]ChangesetRow, error)
 
 	GetRef(ctx context.Context, repo RepoID, name string) (Ref, error)
+	// ListRefs returns the refs whose names start with prefix, by name.
+	ListRefs(ctx context.Context, repo RepoID, prefix string) ([]Ref, error)
 	// CreateRef creates a ref with its mainline rows and a ref_log entry.
 	CreateRef(ctx context.Context, repo RepoID, name string, id hash.ID, mainline []MainlineRow, log RefLogEntry) (Ref, error)
 	// CASRef moves ref name from old to new, updating the mainline and ref_log
@@ -123,6 +131,9 @@ type Store interface {
 	// MainlineLookup returns the mainline depth of each id that is on ref's mainline.
 	MainlineLookup(ctx context.Context, repo RepoID, ref string, ids []hash.ID) (map[hash.ID]int64, error)
 	MainlineAt(ctx context.Context, repo RepoID, ref string, depth int64) (hash.ID, error)
+	// MainlineRange returns up to limit mainline rows with depth ≤ maxDepth,
+	// deepest first.
+	MainlineRange(ctx context.Context, repo RepoID, ref string, maxDepth int64, limit int) ([]MainlineRow, error)
 	// PathHistoryMainline returns, newest first, mainline changesets with
 	// depth ≤ maxDepth and seq < beforeSeq that changed path or anything below
 	// it (04 §Kind 3). path must be non-empty.

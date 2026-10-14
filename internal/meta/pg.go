@@ -208,42 +208,67 @@ func insertFiles(ctx context.Context, tx pgx.Tx, values [][]any) error {
 	return nil
 }
 
+const changesetColumns = "id, seq, parents, body, author, author_time, committer, committer_time, summary, git_sha"
+
 // GetChangesets implements Store. Missing ids are absent from the result.
 func (p *PG) GetChangesets(ctx context.Context, repo RepoID, ids []hash.ID) (map[hash.ID]ChangesetRow, error) {
-	rows, err := p.pool.Query(ctx, `
-		SELECT id, seq, parents, body, author, author_time, committer, committer_time, summary, git_sha
-		FROM changesets WHERE repo_id = $1 AND id = ANY($2)`, repo, idBytes(ids))
+	rows, err := p.queryChangesets(ctx, "SELECT "+changesetColumns+" FROM changesets WHERE repo_id = $1 AND id = ANY($2)", repo, idBytes(ids))
 	if err != nil {
 		return nil, fmt.Errorf("getting changesets: %w", err)
 	}
-	out := make(map[hash.ID]ChangesetRow, len(ids))
-	var (
-		id, body, author, committer, gitSHA []byte
-		parents                             [][]byte
-		authorTime, committerTime           time.Time
-		cs                                  ChangesetRow
-	)
-	_, err = pgx.ForEachRow(rows, []any{&id, &cs.Seq, &parents, &body, &author, &authorTime, &committer, &committerTime, &cs.Summary, &gitSHA}, func() error {
-		row := cs
-		var err error
-		if row.ID, err = toID(id); err != nil {
-			return err
-		}
-		row.Parents = make([]hash.ID, len(parents))
-		for i, p := range parents {
-			if row.Parents[i], err = toID(p); err != nil {
-				return err
-			}
-		}
-		row.Body, row.Author, row.Committer, row.GitSHA = body, author, committer, gitSHA
-		row.AuthorTime, row.CommitterTime = authorTime.Unix(), committerTime.Unix()
-		out[row.ID] = row
-		return nil
-	})
-	if err != nil {
-		return nil, fmt.Errorf("getting changesets: %w", err)
+	out := make(map[hash.ID]ChangesetRow, len(rows))
+	for _, r := range rows {
+		out[r.ID] = r
 	}
 	return out, nil
+}
+
+// ListChangesets implements Store.
+func (p *PG) ListChangesets(ctx context.Context, repo RepoID, afterSeq int64, limit int) ([]ChangesetRow, error) {
+	rows, err := p.queryChangesets(ctx, "SELECT "+changesetColumns+" FROM changesets WHERE repo_id = $1 AND seq > $2 ORDER BY seq LIMIT $3", repo, afterSeq, limit)
+	if err != nil {
+		return nil, fmt.Errorf("listing changesets: %w", err)
+	}
+	return rows, nil
+}
+
+// SampleChangesets implements Store.
+func (p *PG) SampleChangesets(ctx context.Context, repo RepoID, n int) ([]ChangesetRow, error) {
+	rows, err := p.queryChangesets(ctx, "SELECT "+changesetColumns+" FROM changesets WHERE repo_id = $1 ORDER BY random() LIMIT $2", repo, n)
+	if err != nil {
+		return nil, fmt.Errorf("sampling changesets: %w", err)
+	}
+	return rows, nil
+}
+
+func (p *PG) queryChangesets(ctx context.Context, sql string, args ...any) ([]ChangesetRow, error) {
+	rows, err := p.pool.Query(ctx, sql, args...)
+	if err != nil {
+		return nil, err
+	}
+	return pgx.CollectRows(rows, func(row pgx.CollectableRow) (ChangesetRow, error) {
+		var (
+			cs                        ChangesetRow
+			id                        []byte
+			parents                   [][]byte
+			authorTime, committerTime time.Time
+		)
+		if err := row.Scan(&id, &cs.Seq, &parents, &cs.Body, &cs.Author, &authorTime, &cs.Committer, &committerTime, &cs.Summary, &cs.GitSHA); err != nil {
+			return cs, err
+		}
+		var err error
+		if cs.ID, err = toID(id); err != nil {
+			return cs, err
+		}
+		cs.Parents = make([]hash.ID, len(parents))
+		for i, p := range parents {
+			if cs.Parents[i], err = toID(p); err != nil {
+				return cs, err
+			}
+		}
+		cs.AuthorTime, cs.CommitterTime = authorTime.Unix(), committerTime.Unix()
+		return cs, nil
+	})
 }
 
 // GetCore implements Store. Missing ids are absent from the result.
@@ -357,43 +382,56 @@ func (p *PG) GetByGitSHA(ctx context.Context, repo RepoID, sha []byte) (hash.ID,
 
 // ChangesetFiles implements Store, ordered by path.
 func (p *PG) ChangesetFiles(ctx context.Context, repo RepoID, id hash.ID) ([]FileRow, error) {
-	rows, err := p.pool.Query(ctx, `
-		SELECT path, op, mode, size, blob_id FROM changeset_files
-		WHERE repo_id = $1 AND changeset_id = $2 ORDER BY path`, repo, id[:])
+	files, err := p.FilesFor(ctx, repo, []hash.ID{id})
 	if err != nil {
-		return nil, fmt.Errorf("getting files of %s: %w", id, err)
+		return nil, err
 	}
-	files, err := pgx.CollectRows(rows, func(row pgx.CollectableRow) (FileRow, error) {
-		var (
-			f    FileRow
-			op   int16
-			mode *int16
-			size *int64
-			blob []byte
-		)
-		if err := row.Scan(&f.Path, &op, &mode, &size, &blob); err != nil {
-			return f, err
+	return files[id], nil
+}
+
+// FilesFor implements Store.
+func (p *PG) FilesFor(ctx context.Context, repo RepoID, ids []hash.ID) (map[hash.ID][]FileRow, error) {
+	rows, err := p.pool.Query(ctx, `
+		SELECT changeset_id, path, op, mode, size, blob_id FROM changeset_files
+		WHERE repo_id = $1 AND changeset_id = ANY($2) ORDER BY changeset_id, path`, repo, idBytes(ids))
+	if err != nil {
+		return nil, fmt.Errorf("getting file rows: %w", err)
+	}
+	out := make(map[hash.ID][]FileRow, len(ids))
+	var (
+		csID []byte
+		f    FileRow
+		op   int16
+		mode *int16
+		size *int64
+		blob []byte
+	)
+	_, err = pgx.ForEachRow(rows, []any{&csID, &f.Path, &op, &mode, &size, &blob}, func() error {
+		id, err := toID(csID)
+		if err != nil {
+			return err
 		}
+		row := FileRow{Path: f.Path}
 		if op < 1 || op > 2 {
-			return f, fmt.Errorf("file %q: invalid op %d", f.Path, op)
+			return fmt.Errorf("file %q: invalid op %d", f.Path, op)
 		}
-		f.Op = changeset.Op(op)
-		if f.Op == changeset.OpPut {
+		row.Op = changeset.Op(op)
+		if row.Op == changeset.OpPut {
 			if mode == nil || size == nil || blob == nil || *mode < 1 || *mode > 255 || *size < 0 {
-				return f, fmt.Errorf("file %q: incomplete PUT row", f.Path)
+				return fmt.Errorf("file %q: incomplete PUT row", f.Path)
 			}
-			f.Mode, f.Size = object.Mode(*mode), uint64(*size)
-			var err error
-			if f.Blob, err = toID(blob); err != nil {
-				return f, err
+			row.Mode, row.Size = object.Mode(*mode), uint64(*size)
+			if row.Blob, err = toID(blob); err != nil {
+				return err
 			}
 		}
-		return f, nil
+		out[id] = append(out[id], row)
+		return nil
 	})
 	if err != nil {
-		return nil, fmt.Errorf("getting files of %s: %w", id, err)
+		return nil, fmt.Errorf("getting file rows: %w", err)
 	}
-	return files, nil
+	return out, nil
 }
 
 // ---- refs and mainline
@@ -421,6 +459,30 @@ func getRef(ctx context.Context, q querier, repo RepoID, name string) (Ref, erro
 		return Ref{}, err
 	}
 	return ref, nil
+}
+
+// ListRefs implements Store.
+func (p *PG) ListRefs(ctx context.Context, repo RepoID, prefix string) ([]Ref, error) {
+	rows, err := p.pool.Query(ctx, `
+		SELECT name, changeset_id, version FROM refs
+		WHERE repo_id = $1 AND starts_with(name, $2) ORDER BY name`, repo, prefix)
+	if err != nil {
+		return nil, fmt.Errorf("listing refs: %w", err)
+	}
+	refs, err := pgx.CollectRows(rows, func(row pgx.CollectableRow) (Ref, error) {
+		var r Ref
+		var b []byte
+		if err := row.Scan(&r.Name, &b, &r.Version); err != nil {
+			return r, err
+		}
+		var err error
+		r.ID, err = toID(b)
+		return r, err
+	})
+	if err != nil {
+		return nil, fmt.Errorf("listing refs: %w", err)
+	}
+	return refs, nil
 }
 
 // CreateRef implements Store.
@@ -538,6 +600,31 @@ func (p *PG) MainlineAt(ctx context.Context, repo RepoID, ref string, depth int6
 		return hash.ID{}, fmt.Errorf("mainline %q depth %d: %w", ref, depth, err)
 	}
 	return toID(b)
+}
+
+// MainlineRange implements Store.
+func (p *PG) MainlineRange(ctx context.Context, repo RepoID, ref string, maxDepth int64, limit int) ([]MainlineRow, error) {
+	rows, err := p.pool.Query(ctx, `
+		SELECT fp_depth, changeset_id FROM mainline
+		WHERE repo_id = $1 AND ref_name = $2 AND fp_depth <= $3
+		ORDER BY fp_depth DESC LIMIT $4`, repo, ref, maxDepth, limit)
+	if err != nil {
+		return nil, fmt.Errorf("mainline range: %w", err)
+	}
+	out, err := pgx.CollectRows(rows, func(row pgx.CollectableRow) (MainlineRow, error) {
+		var r MainlineRow
+		var b []byte
+		if err := row.Scan(&r.Depth, &b); err != nil {
+			return r, err
+		}
+		var err error
+		r.ID, err = toID(b)
+		return r, err
+	})
+	if err != nil {
+		return nil, fmt.Errorf("mainline range: %w", err)
+	}
+	return out, nil
 }
 
 // PathHistoryMainline implements Store with the query from 04 §Kind 3.

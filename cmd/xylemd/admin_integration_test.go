@@ -76,4 +76,20 @@ func TestAdminInitRepoAndSetRef(t *testing.T) {
 	if _, err := run(t, append([]string{"admin", "set-ref", "nope", "main", a.ID.String()}, flags...)...); err == nil {
 		t.Error("set-ref on unknown repo succeeded")
 	}
+
+	// verify passes on this history, then fails once a row is tampered with.
+	out, err = run(t, append([]string{"verify", "proj", "--all", "--objects"}, flags...)...)
+	if err != nil || !strings.Contains(out, "checked 3 changesets and 2 refs: 0 violations") {
+		t.Fatalf("verify: %q, %v", out, err)
+	}
+	if _, err := pool.Exec(ctx, "UPDATE core_derived SET gen = 99 WHERE changeset_id = $1", b.ID[:]); err != nil {
+		t.Fatal(err)
+	}
+	out, err = run(t, append([]string{"verify", "proj"}, flags...)...)
+	if err == nil || !strings.Contains(out, "VIOLATION") || !strings.Contains(out, "1 violations") {
+		t.Errorf("verify after tampering: %q, %v", out, err)
+	}
+	if _, err := run(t, append([]string{"verify", "proj", "--all", "--sample", "2"}, flags...)...); err == nil {
+		t.Error("--all with --sample accepted")
+	}
 }
