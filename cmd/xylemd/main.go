@@ -13,12 +13,19 @@ func main() {
 	}
 }
 
+// globalFlags are persistent flags shared by all subcommands.
+type globalFlags struct {
+	logLevel string
+}
+
 func newRootCmd() *cobra.Command {
+	var g globalFlags
 	root := &cobra.Command{
 		Use:          "xylemd",
 		Short:        "Xylem server, cache tiers and admin tools",
 		SilenceUsage: true,
 	}
-	root.AddCommand(newVersionCmd())
+	root.PersistentFlags().StringVar(&g.logLevel, "log-level", envOr("XYLEM_LOG_LEVEL", "info"), "debug, info, warn or error (env XYLEM_LOG_LEVEL)")
+	root.AddCommand(newVersionCmd(), newMigrateCmd(&g))
 	return root
 }
