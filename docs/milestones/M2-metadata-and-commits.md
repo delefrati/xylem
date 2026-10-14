@@ -20,7 +20,7 @@
 - [x] **M2.6 `internal/repo.CreateChangeset`.** Implement steps 1–11 of 07 with options `{AllowRoot, AllowEmpty, Committer *Signature, Now func()}`. Blob existence and size check against the store. Return a domain `Changeset` with core data. Also add `internal/repo/repotest.New(t)` returning a `*repo.Repo` wired with `testutil.NewDB(t)` and a Mem store (a separate package avoids an import cycle with `testutil`).
 - [x] **M2.7 Refs and mainline.** `repo.UpdateRef(ctx, name, expected, new, force, actor, reason)`: fast-forward check via `IsFirstParentAncestor`, mainline rows for the new fp segment (walk `fp_parent` from new down to old), and rewind for force. Add `xylemd admin init-repo <name>` (empty root changeset with `AllowRoot` and `AllowEmpty`; create `main`) and `xylemd admin set-ref`.
 - [x] **M2.8 `xylemd verify`.** For all changesets (or `--sample N`): re-derive `root_tree` from the parent and `changeset_files` and compare; recompute core fields; check `seq(child) > seq(parent)`; check mainline equals the walk of `fp_parent` from each ref tip; check every referenced blob and tree exists (`--objects`). Print a summary and exit non-zero on any violation.
-- [ ] **M2.9 Stress test** (integration). Generate 10,000 changesets on a 1,000-file synthetic tree: random puts and deletes, about 5% two-parent merges, `main` advanced in fast-forward steps. Then run `verify --all` in the test. Log the timing to `progress.md`.
+- [x] **M2.9 Stress test** (integration). Generate 10,000 changesets on a 1,000-file synthetic tree: random puts and deletes, about 5% two-parent merges, `main` advanced in fast-forward steps. Then run `verify --all` in the test. Log the timing to `progress.md`.
 
 ## Acceptance criteria
 

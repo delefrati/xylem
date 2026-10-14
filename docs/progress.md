@@ -17,6 +17,7 @@ Maintained by the implementing agent. Newest entries first within each section.
 ## Deviations from spec
 
 <!-- - YYYY-MM-DD M2.4: <what changed, why, doc updated: 04-derived-data.md> -->
+- 2026-10-14 M2.9: under `-race` (as in `make check`) TestStress runs 1,000 changesets instead of 10,000 to keep `make check` fast; the milestone verification command (no -race) runs the full 10,000.
 - 2026-10-14 M2.8: verify also checks body ↔ id ↔ denormalized columns and changeset_files (body is the source of truth) and that refs point at existing changesets. `--objects` checks what each changeset introduces (PUT blobs, root tree, trees along changed paths); by induction that covers every reachable object. Added meta FilesFor/ListChangesets/SampleChangesets/ListRefs/MainlineRange for batched reads (no N+1).
 - 2026-10-14 M2.7: only `main` keeps a mainline (`repo.MainRef`, the MVP scope in 03); the forced-update agreement depth compares `AncestorAtDepth` of the old and new tips (equivalent to `mainline[d]`, since mainline is the old tip's chain). CreateChangeset stores the empty tree object whenever a root tree is empty, so clients can fetch it. `xylemd admin set-ref` takes a full id or unique ≥8-hex prefix (`repo.ResolveHex`) until M4's revision syntax.
 - 2026-10-14 M2.6: `CreateOptions` also has `TrustSizes` (03 rule 3 importer option); `Now` lives on `repo.Options` (one clock per Repo). Root changesets in an empty repo need no `AllowRoot` (03 rule 1). Added `object.PeekHeader` (streaming header-only read for rule 3). The `git-sha` extra must be 40 lowercase hex (it fills the `git_sha` column).
@@ -71,10 +72,12 @@ Verified on a fresh `git clone` of 3e549f4: `make tools && make up && make proto
 
 <!-- - YYYY-MM-DD: CreateChangeset 10 files on 1k-file tree: p50 X ms, p99 Y ms (M2.9) -->
 
+- 2026-10-14: stress 10,000 changesets on a ~1,000-file tree (5.4% merges, 1,155 fast-forwards): created in 15.6 s (1.56 ms/changeset), verify --all --objects in 3.4 s, 0 violations (M2.9)
 - 2026-10-14: CreateChangeset 10 files on 1k-file tree: p50 2.0 ms, p99 2.6 ms (local Postgres, mem store, no -race; 13.7 ms p50 under -race) (M2.6)
 ## Log
 
 <!-- - YYYY-MM-DD M0.2: skeleton dirs + cobra roots (commit abc1234) -->
+- 2026-10-14 M2.9: TestStress — 10k changesets, random puts/deletes, ~5% merges via a side branch, main fast-forwarded in steps, full Verify with objects → 0 violations
 - 2026-10-14 M2.8: repo.Verify + `xylemd verify <repo> [--all|--sample N] [--objects]` (prints violations, exits non-zero); 13 tampering tests each detected (root tree, gen, jump, body, columns, file rows, seq, mainline gap/wrong/extra, dangling ref, missing blob, missing tree)
 - 2026-10-14 M2.7: repo.UpdateRef (ref-name check, fast-forward via IsFirstParentAncestor, mainline rows from fp walk, forced rewind via binary-searched agreement depth, CAS errors → ErrConflict), repo.Init, ResolveHex; `xylemd admin init-repo` and `admin set-ref [--force] [--expected]` (--db, --store); tests check mainline == fp chain after every update
 - 2026-10-14 M2.6: internal/repo — Open, CreateChangeset (07 steps 1–11: shape, parents, blob existence + header-size check, committer, encode, idempotency, Apply + store trees, ComputeCore, one tx), MissingBlobsError, domain errors; repotest.New/Put/Commit; 10 concurrent identical creates → 1 created + 9 already_existed
