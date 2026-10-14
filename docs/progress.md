@@ -4,9 +4,9 @@ Maintained by the implementing agent. Newest entries first within each section.
 
 ## Status
 
-- **Current milestone:** M0 — Bootstrap
-- **Last checkpoint approved by human:** — (plan approved: 2026-10-14)
-- **Blocked on:** human review of M0 (⛔ end of milestone), incl. ADR-020 (Proposed) and the first CI run after push
+- **Current milestone:** M1 — Core objects and stores
+- **Last checkpoint approved by human:** M0 — 2026-10-14 (module path, name, tools confirmed; ADR-020 accepted)
+- **Blocked on:** —
 
 ## Open questions (for the human)
 
@@ -16,7 +16,7 @@ Maintained by the implementing agent. Newest entries first within each section.
 ## Deviations from spec
 
 <!-- - YYYY-MM-DD M2.4: <what changed, why, doc updated: 04-derived-data.md> -->
-- 2026-10-14 M0.4: **ADR-020 (Proposed)** — upstream `minio/minio`/`minio/mc` images are no longer pullable; switched to pinned `pgsty/minio`/`pgsty/mc`. Needs human approval.
+- 2026-10-14 M0.4: **ADR-020 (Accepted 2026-10-14)** — upstream `minio/minio`/`minio/mc` images are no longer pullable; switched to pinned `pgsty/minio`/`pgsty/mc`.
 - 2026-10-14 M0.4: `make up` runs `docker compose run --rm minio-init` instead of `compose wait` (which can't see already-exited one-shot containers); doc updated: 11-dev-environment.md
 - 2026-10-14 M0.4: `make reset-db` description said the `xy` DB; it's `xylem`; doc updated: 11-dev-environment.md
 - 2026-10-14 M0.2: client CLI lives in `cmd/xy` (M0.2, binary name), not `cmd/xylem` as the layout tree said; doc updated: 02-architecture.md
@@ -32,9 +32,9 @@ Verified on a fresh `git clone` of 3e549f4: `make tools && make up && make proto
 | `make tools && make up && make proto && make check` passes on a clean clone | Clean-clone run above; golangci-lint 0 issues, `go test -race -tags integration ./...` ok, build ok | ✅ |
 | `bin/xy version` and `bin/xylemd version` print the version info | `xy 3e549f4 (commit 3e549f4, go1.27.2 linux/amd64)`, same for `xylemd`; covered by `TestVersionCommand` | ✅ |
 | `buf lint` passes on the proto files | `buf lint` (STANDARD) clean on the 4 protos copied verbatim from 05-api.md | ✅ |
-| CI is green on the first push | Workflow passes actionlint; MinIO start/bucket steps simulated locally. **Not pushed yet** | ⏳ pending push |
+| CI is green on the first push | GitHub Actions run 38611733577 on bb60187: lint, unit, integration, build, proto freshness all success (~5 min, cold tool cache) | ✅ |
 
-**Summary:** the repo builds, lints, tests, generates protobuf code (committed, freshness-checked), runs Postgres 17.11 and MinIO locally, and has CI. One design change needs approval: **ADR-020** (upstream MinIO images are gone; using pinned `pgsty/minio` and `pgsty/mc`). For the end-of-M0 checkpoint, please confirm the module path (`github.com/delefrati/xylem`), the project name, and the tool choices (versions in `tools.mk`).
+**Summary:** the repo builds, lints, tests, generates protobuf code (committed, freshness-checked), runs Postgres 17.11 and MinIO locally, and has CI. Approved by the human on 2026-10-14, including **ADR-020** (pinned `pgsty/minio` and `pgsty/mc` replace the unavailable upstream MinIO images).
 
 <!--
 ### M1 — YYYY-MM-DD

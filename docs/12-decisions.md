@@ -85,7 +85,7 @@ An implementing agent may add **Proposed** ADRs. Only a human changes them to Ac
 **Decision:** Land checks only file-level conflicts. Semantic breakage is caught by post-merge CI and fixed forward or reverted automatically (post-MVP tooling).
 **Consequences:** Land throughput scales with the CAS rate, not CI duration.
 
-### ADR-020 — Community MinIO images for dev and CI · Proposed
+### ADR-020 — Community MinIO images for dev and CI · Accepted
 **Context:** The upstream `minio/minio` and `minio/mc` images are no longer pullable (Docker Hub repos removed; quay.io requires auth), so the compose file in 11 can't start. MinIO is only a dev/CI stand-in for S3; the code talks to it through `minio-go`, which works with any S3 endpoint.
 **Decision:** Use the community MinIO builds `pgsty/minio` and `pgsty/mc`, pinned to `RELEASE.*` tags. Same binaries, commands, env vars and `mc ready` healthcheck as upstream.
 **Consequences:** No code or config changes beyond image names. Alternatives if this fork goes stale: `bitnamilegacy/minio` (frozen at 2025-07), or a different S3 server (SeaweedFS, Garage, RustFS) at the cost of a different init script.
