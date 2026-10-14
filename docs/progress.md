@@ -52,6 +52,7 @@ Verified on a fresh `git clone` of 3e549f4: `make tools && make up && make proto
 ## Log
 
 <!-- - YYYY-MM-DD M0.2: skeleton dirs + cobra roots (commit abc1234) -->
+- 2026-10-14 M1.7: internal/store/storetest contract suite (put/get, not found, has incl. order+dups, idempotent put, 32 concurrent same-id puts, 64 distinct, 24 MiB object (S3 multipart), canceled ctx); passes for mem, fs and s3 (-tags integration, MinIO); mutation-checked; store coverage 88.7% with integration
 - 2026-10-14 M1.6: internal/store — ObjectStore, ErrNotFound, Key, Open(mem/fs/s3 URL, secrets redacted in errors); Mem (copying), FS (temp+fsync+rename, skip if present), S3 (minio-go v7.3.0, Has via StatObject x32 via x/sync v0.24.0 errgroup); S3 smoke-checked against local MinIO; full contract suite is M1.7
 - 2026-10-14 M1.5: internal/changeset — Changeset/Signature/Change, Encode (sorts copies; rejects dup paths and op/mode mismatches), ID, Decode (canonical only), ValidateShape(ShapeOptions{AllowEmpty}), Summary; internal/canon extracted; 99.4% coverage, hand-computed layout test
 - 2026-10-14 M1.4: internal/object tree encoding — Mode, Entry, Tree, EncodeTree (validates order/names/modes, rejects size on TREE), DecodeTree (canonical only: minimal varints, no trailing bytes, bounded prealloc), Lookup; hand-computed layout test; backfilled M1.3 mutation property; 98.7% coverage

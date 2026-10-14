@@ -25,7 +25,8 @@ type ObjectStore interface {
 	// Get returns the stored bytes of id, or an error wrapping ErrNotFound.
 	Get(ctx context.Context, id hash.ID) ([]byte, error)
 	// Put stores the stored bytes of id. Putting an id that already exists
-	// succeeds without changing it.
+	// succeeds. Implementations may keep either copy: any two valid stored
+	// forms of an id decode to the same content.
 	Put(ctx context.Context, id hash.ID, stored []byte) error
 	// Has reports, for each id in order, whether the store holds it.
 	Has(ctx context.Context, ids []hash.ID) ([]bool, error)
