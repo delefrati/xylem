@@ -17,6 +17,7 @@ Maintained by the implementing agent. Newest entries first within each section.
 ## Deviations from spec
 
 <!-- - YYYY-MM-DD M2.4: <what changed, why, doc updated: 04-derived-data.md> -->
+- 2026-10-14 M2.5: `derived.Source` has `Core` and `Parents` (BFS and paint-down need all parents, which core_derived lacks); added `meta.Store.GetParents` (selects only the parents column). `ComputeCore` takes (id, parents, rootTree) rather than a whole changeset. Noted in code: with generation-ordered paint-down, step 4 (remove redundant) never drops anything; kept per spec and tested directly.
 - 2026-10-14 M2.4: `treeops.Apply` returns `[]NewTree{ID, Stored, Tree}` (stored bytes plus the decoded tree, so callers can store and cache) and also rejects duplicate paths (`ErrDuplicatePath`, found by the property test; changeset validation already rejects them, this is defense in depth). Deleting a directory path or through a file is `ErrDeleteMissing`.
 - 2026-10-14 M2.3: no standalone `MainlineRewind`; rewinds go through `CASRef(…, MainlineUpdate{Rewind, KeepThrough, Rows}, …)` so mainline changes always share the ref CAS transaction (03 §Invariants, 04 §Kind 2). `author_time`/`committer_time` columns are clamped to years 1–9999 (body stays exact; golden vector `changeset_non_utf8` uses MaxInt64). Store methods take a `RepoID`; batch getters return maps.
 - 2026-10-14 M2.2: 10-testing.md named the per-test template `xylem_template` in step 3 but `xylem_tmpl_<hash>` in step 2; uses the hashed name (built as `…_building`, renamed when complete); doc updated: 10-testing.md
@@ -70,6 +71,7 @@ Verified on a fresh `git clone` of 3e549f4: `make tools && make up && make proto
 ## Log
 
 <!-- - YYYY-MM-DD M0.2: skeleton dirs + cobra roots (commit abc1234) -->
+- 2026-10-14 M2.5: internal/derived core — ComputeCore (gen, fp_depth, fp_parent, skew-binary jump), CachedSource (LRU over meta), AncestorAtDepth/IsFirstParentAncestor/IsAncestor/MergeBases; property tests vs naive on random DAGs (≤300 nodes, 199 criss-cross pairs) and a 10k-deep tree with an O(log) read bound; mutation-checked
 - 2026-10-14 M2.4: internal/treeops — Trees (LRU of decoded trees, golang-lru v2.0.7), Lookup, Apply (deletes+prune, puts, bottom-up encode; ErrDeleteMissing/ErrNoopPut/FileDirClashError/ErrDuplicatePath); property test: 1748 valid lists equal from-scratch builds, 2002 invalid rejected; mutation-checked
 - 2026-10-14 M2.3: internal/meta Store + PG — repos (cached), InsertChangeset (one tx, ON CONFLICT, COPY > 1000 files), GetChangesets/GetCore/ResolvePrefix/GetByGitSHA/ChangesetFiles, GetRef/CreateRef/CASRef (mainline + ref_log in the same tx), MainlineLookup/MainlineAt, PathHistoryMainline (04 query); 13 integration tests incl. 10-way concurrent insert and CAS
 - 2026-10-14 M2.2: testutil.NewDB (template xylem_tmpl_<fingerprint> under advisory lock, per-test clone, dropped on cleanup); 20 parallel clones ≈ 0.1–0.23 s each

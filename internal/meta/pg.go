@@ -285,6 +285,37 @@ func (p *PG) GetCore(ctx context.Context, repo RepoID, ids []hash.ID) (map[hash.
 	return out, nil
 }
 
+// GetParents implements Store. Missing ids are absent from the result.
+func (p *PG) GetParents(ctx context.Context, repo RepoID, ids []hash.ID) (map[hash.ID][]hash.ID, error) {
+	rows, err := p.pool.Query(ctx, "SELECT id, parents FROM changesets WHERE repo_id = $1 AND id = ANY($2)", repo, idBytes(ids))
+	if err != nil {
+		return nil, fmt.Errorf("getting parents: %w", err)
+	}
+	out := make(map[hash.ID][]hash.ID, len(ids))
+	var (
+		b       []byte
+		parents [][]byte
+	)
+	_, err = pgx.ForEachRow(rows, []any{&b, &parents}, func() error {
+		id, err := toID(b)
+		if err != nil {
+			return err
+		}
+		ps := make([]hash.ID, len(parents))
+		for i, p := range parents {
+			if ps[i], err = toID(p); err != nil {
+				return err
+			}
+		}
+		out[id] = ps
+		return nil
+	})
+	if err != nil {
+		return nil, fmt.Errorf("getting parents: %w", err)
+	}
+	return out, nil
+}
+
 func collectIDs(rows pgx.Rows) ([]hash.ID, error) {
 	return pgx.CollectRows(rows, func(row pgx.CollectableRow) (hash.ID, error) {
 		var b []byte

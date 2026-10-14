@@ -104,6 +104,8 @@ type Store interface {
 	InsertChangeset(ctx context.Context, repo RepoID, cs ChangesetRow, files []FileRow, core CoreRow) (seq int64, inserted bool, err error)
 	GetChangesets(ctx context.Context, repo RepoID, ids []hash.ID) (map[hash.ID]ChangesetRow, error)
 	GetCore(ctx context.Context, repo RepoID, ids []hash.ID) (map[hash.ID]CoreRow, error)
+	// GetParents returns the parents of each found changeset (first parent first).
+	GetParents(ctx context.Context, repo RepoID, ids []hash.ID) (map[hash.ID][]hash.ID, error)
 	// ResolvePrefix returns up to limit ids in [lo, hi) in ascending order; a
 	// nil hi is unbounded (see hash.ParsePrefix).
 	ResolvePrefix(ctx context.Context, repo RepoID, lo, hi []byte, limit int) ([]hash.ID, error)

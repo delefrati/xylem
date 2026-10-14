@@ -141,6 +141,14 @@ func TestInsertAndGetChangesets(t *testing.T) {
 		t.Errorf("core rows mismatch (-want +got):\n%s", diff)
 	}
 
+	parents, err := s.GetParents(ctx, repo, []hash.ID{root.ID, child.ID, missing})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if diff := gocmp.Diff(map[hash.ID][]hash.ID{root.ID: {}, child.ID: {root.ID}}, parents); diff != "" {
+		t.Errorf("GetParents mismatch (-want +got):\n%s", diff)
+	}
+
 	files, err := s.ChangesetFiles(ctx, repo, child.ID)
 	if err != nil {
 		t.Fatal(err)
