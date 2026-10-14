@@ -4,9 +4,9 @@ Maintained by the implementing agent. Newest entries first within each section.
 
 ## Status
 
-- **Current milestone:** M2 — Metadata and commit engine
-- **Last checkpoint approved by human:** M1 — 2026-10-14 (golden vectors approved 2026-10-14; M0 approved 2026-10-14)
-- **Blocked on:** human review of M2 (⛔ end of milestone)
+- **Current milestone:** M3 — Git import
+- **Last checkpoint approved by human:** M2 — 2026-10-14 (M1, golden vectors and M0 approved 2026-10-14)
+- **Blocked on:** —
 
 ## Open questions (for the human)
 
@@ -38,7 +38,7 @@ Maintained by the implementing agent. Newest entries first within each section.
 
 ### M2 — 2026-10-14
 
-Verified on 0022fcf: `make up && make check` → exit 0 (all packages pass under `-race`, including the 1,000-changeset race variant of TestStress); `go test -tags integration -run TestStress ./internal/repo/... -v` → PASS.
+Approved by the human 2026-10-14; CI run 38643279121 green on 15031cd. Verified on 0022fcf: `make up && make check` → exit 0 (all packages pass under `-race`, including the 1,000-changeset race variant of TestStress); `go test -tags integration -run TestStress ./internal/repo/... -v` → PASS.
 
 | Acceptance criterion | Evidence | Result |
 |---|---|---|
