@@ -137,6 +137,7 @@ Verified on a fresh `git clone` of 3e549f4: `make tools && make up && make proto
 ## Log
 
 <!-- - YYYY-MM-DD M0.2: skeleton dirs + cobra roots (commit abc1234) -->
+- 2026-10-14 M5.5: client.Dirstate (XYLDS1 header + gob {written-at, entries sorted by path}, atomic Save stamping WrittenAtNs, bad/missing → ErrNoDirstate), RebuildDirstate (hash expected files; mismatches get MtimeNs 0), FileMode (git exec rule), HashFile (symlinks hash their target)
 - 2026-10-14 M5.4: client.Scope (TreeInScope/FileInScope by whole components; root files always in scope), client.Fetcher (BFS trees by level then blobs, ≤1024 per batch, 8 concurrent streams, verify-before-cache, TTY progress, missing objects = error), CacheTrees (treeops.TreeReader over the cache); servertest.Start (imported fixture on loopback, CountingStore of server reads); sparse fetch of internal/api on branchy reads exactly 3 trees + in-scope blobs
 - 2026-10-14 M5.3: client.ObjectCache (.xylem/objects/ab/cd/<hex>, verify on insert, GetVerified removes corrupt entries, Stats, LRU GC, EnsureLimit) and `xy cache stats|gc [--target]` with --json
 - 2026-10-14 M5.2: client.Workspace (Init, Open walking up to .xylem, config.toml via BurntSushi/toml v1.6.0, state.json with atomic temp+fsync+rename, flock on .xylem/lock), client.WriteFileAtomic
