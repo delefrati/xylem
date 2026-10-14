@@ -54,6 +54,7 @@ type Server struct {
 	cfg     Config
 	log     *slog.Logger
 	metrics *rpcMetrics
+	objects *objCache
 
 	mu    sync.Mutex
 	repos map[string]*repo.Repo
@@ -67,7 +68,10 @@ func New(cfg Config) *Server {
 	if cfg.Registry == nil {
 		cfg.Registry = prometheus.NewRegistry()
 	}
-	return &Server{cfg: cfg, log: cfg.Logger, metrics: newRPCMetrics(cfg.Registry), repos: map[string]*repo.Repo{}}
+	return &Server{
+		cfg: cfg, log: cfg.Logger, metrics: newRPCMetrics(cfg.Registry),
+		objects: newObjCache(cfg.ObjectCacheBytes), repos: map[string]*repo.Repo{},
+	}
 }
 
 // Registry returns the metrics registry.
