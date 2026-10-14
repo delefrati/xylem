@@ -2,13 +2,20 @@
 package main
 
 import (
+	"context"
 	"os"
+	"os/signal"
+	"syscall"
 
 	"github.com/spf13/cobra"
 )
 
 func main() {
-	if err := newRootCmd().Execute(); err != nil {
+	// Interrupts cancel the context, so long commands (import) stop cleanly.
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	err := newRootCmd().ExecuteContext(ctx)
+	stop()
+	if err != nil {
 		os.Exit(1)
 	}
 }
@@ -26,6 +33,6 @@ func newRootCmd() *cobra.Command {
 		SilenceUsage: true,
 	}
 	root.PersistentFlags().StringVar(&g.logLevel, "log-level", envOr("XYLEM_LOG_LEVEL", "info"), "debug, info, warn or error (env XYLEM_LOG_LEVEL)")
-	root.AddCommand(newVersionCmd(), newMigrateCmd(&g), newAdminCmd(&g), newVerifyCmd(&g))
+	root.AddCommand(newVersionCmd(), newMigrateCmd(&g), newAdminCmd(&g), newVerifyCmd(&g), newImportCmd(&g))
 	return root
 }
