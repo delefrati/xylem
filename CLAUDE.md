@@ -18,7 +18,7 @@ For each unchecked task, in order:
 3. Run `make check` (requires `make up`). Fix until green. **Never** skip, delete or weaken a test to get green.
 4. Tick the checkbox in the milestone file and add a one-line entry to `docs/progress.md`.
 5. **Don't commit or push** — the human reviews every change and commits it. Suggest a conventional commit message for the task, e.g. `feat(m2): incremental tree apply`.
-6. Continue with the next task.
+6. **Stop** and wait for the human to review and commit. Continue with the next task only when told to.
 
 At the **end of a milestone**: run the milestone's Verification commands, record results against each acceptance criterion in `progress.md`, write a short summary, and **stop for human review**. Also stop at any ⛔ marker inside a milestone.
 
