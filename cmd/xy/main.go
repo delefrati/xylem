@@ -88,10 +88,6 @@ func m5(use, short string) *cobra.Command {
 	return &cobra.Command{Use: use, Short: short, RunE: notYet("M5")}
 }
 
-func newCloneCmd(*globals) *cobra.Command {
-	return m5("clone <server> <dir>", "Create a workspace and check out a revision (full or --sparse)")
-}
-
 func newStatusCmd(*globals) *cobra.Command {
 	return m5("status", "Show changed files in the working copy")
 }
