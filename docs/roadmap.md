@@ -43,4 +43,4 @@ The agent **stops and waits** for a human at:
 - `make check` passes (needs `make up`).
 - Spec docs updated if behaviour differs or was clarified, with an ADR if it's a decision.
 - The task's checkbox is ticked in its milestone file, with a one-line entry in `docs/progress.md`.
-- One conventional commit per task (or a few, if the task is large).
+- One conventional commit per task (or a few, if the task is large), made by the human after review; the agent suggests the message.
