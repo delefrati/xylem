@@ -16,6 +16,7 @@ Maintained by the implementing agent. Newest entries first within each section.
 ## Deviations from spec
 
 <!-- - YYYY-MM-DD M2.4: <what changed, why, doc updated: 04-derived-data.md> -->
+- 2026-10-14 M0.2: client CLI lives in `cmd/xy` (M0.2, binary name), not `cmd/xylem` as the layout tree said; doc updated: 02-architecture.md
 
 ## Milestone results
 
@@ -33,3 +34,4 @@ Maintained by the implementing agent. Newest entries first within each section.
 
 <!-- - YYYY-MM-DD M0.2: skeleton dirs + cobra roots (commit abc1234) -->
 - 2026-10-14 M0.1: module `github.com/delefrati/xylem` (go 1.27.2); OWNER replaced in docs
+- 2026-10-14 M0.2: internal/* skeleton (19 pkgs), cmd/xy + cmd/xylemd cobra roots with `version`

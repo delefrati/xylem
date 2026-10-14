@@ -84,7 +84,7 @@ xylem/
 ├── proto/xylem/v1/           # *.proto (source of truth for the API)
 ├── gen/xylem/v1/             # generated Go code (committed)
 ├── cmd/
-│   ├── xylem/                # client CLI (cobra)
+│   ├── xy/                   # client CLI (cobra)
 │   └── xylemd/               # server | cache | daemon | import | migrate | parity | verify
 ├── internal/
 │   ├── hash/                  # ObjectID (BLAKE3-256), hex, prefix parsing
