@@ -13,7 +13,7 @@
 - [x] **M3.5 Progress and resume.** Every `--batch` commits, update `import_state` and advance `main` via `repo.UpdateRef(reason="import")` when the last imported commit is on the branch's first-parent chain. A killed import must resume without duplicates (idempotent create plus a preloaded map).
 - [x] **M3.6 `xylemd import` command.** Flags from 08, plus a progress log line every 5 s (commits/s, blobs/s, bytes). Add `--follow` polling mode.
 - [x] **M3.7 `xylemd verify-import`.** Tree comparison per 08, using an in-process tree walk via `repo`/`treeops`, not RPCs (`--all` or `--sample N --seed S`). Map git blob shas to Xylem ids via the `git_blobs` table (migration `0002_git_blobs.sql`, defined in 08), which the importer fills as it uploads blobs. The table also serves as the persistent blob-sha cache on resume.
-- [ ] **M3.8 Tests.** Integration tests importing `tiny`, `edge` and `branchy`, then `verify-import --all`. Kill-and-resume test (cancel the context mid-import, re-run, verify). Incremental test (add commits to the fixture, re-import, verify the new commits only).
+- [x] **M3.8 Tests.** Integration tests importing `tiny`, `edge` and `branchy`, then `verify-import --all`. Kill-and-resume test (cancel the context mid-import, re-run, verify). Incremental test (add commits to the fixture, re-import, verify the new commits only).
 
 ## Acceptance criteria
 

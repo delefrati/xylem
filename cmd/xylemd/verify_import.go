@@ -13,10 +13,10 @@ import (
 
 func newVerifyImportCmd(g *globalFlags) *cobra.Command {
 	var (
-		dbURL, storeURL, gitDir, branch, repoName string
-		all                                       bool
-		sample                                    int
-		seed                                      uint64
+		dbURL, storeURL, gitDir, branch, repoName, since string
+		all                                              bool
+		sample                                           int
+		seed                                             uint64
 	)
 	cmd := &cobra.Command{
 		Use:   "verify-import --git <dir> (--all | --sample N [--seed S])",
@@ -48,7 +48,15 @@ func newVerifyImportCmd(g *globalFlags) *cobra.Command {
 				return err
 			}
 			defer func() { _ = src.Close() }()
-			report, err := importer.VerifyImport(ctx, r, src, importer.VerifyOptions{Branch: branch, Sample: sample, Seed: seed})
+			opts := importer.VerifyOptions{Branch: branch, Sample: sample, Seed: seed}
+			if since != "" {
+				s, err := gitsource.ParseSHA(since)
+				if err != nil {
+					return fmt.Errorf("--since: %w", err)
+				}
+				opts.Since = &s
+			}
+			report, err := importer.VerifyImport(ctx, r, src, opts)
 			if err != nil {
 				return err
 			}
@@ -75,5 +83,6 @@ func newVerifyImportCmd(g *globalFlags) *cobra.Command {
 	cmd.Flags().BoolVar(&all, "all", false, "compare every commit")
 	cmd.Flags().IntVar(&sample, "sample", 0, "compare N random commits")
 	cmd.Flags().Uint64Var(&seed, "seed", 1, "random seed for --sample")
+	cmd.Flags().StringVar(&since, "since", "", "only commits not reachable from this git sha (after an incremental import)")
 	return cmd
 }

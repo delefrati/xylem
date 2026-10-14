@@ -97,6 +97,25 @@ func TestImportCommand(t *testing.T) {
 	if err != nil || !strings.Contains(out, "checked 11 changesets and 1 refs: 0 violations") {
 		t.Errorf("verify after follow: %q, %v", out, err)
 	}
+
+	// verify-import: all, sample, since, argument errors, and a mismatch.
+	if out, err := run(t, append([]string{"verify-import", "--all"}, flags...)...); err != nil || !strings.Contains(out, "compared 11 commits") || !strings.Contains(out, "0 mismatches") {
+		t.Errorf("verify-import --all: %q, %v", out, err)
+	}
+	if out, err := run(t, append([]string{"verify-import", "--sample", "3", "--seed", "9"}, flags...)...); err != nil || !strings.Contains(out, "compared 3 commits") {
+		t.Errorf("verify-import --sample: %q, %v", out, err)
+	}
+	prev := testutil.Git(t, gitDir, "rev-parse", "main~1")
+	if out, err := run(t, append([]string{"verify-import", "--all", "--since", prev}, flags...)...); err != nil || !strings.Contains(out, "compared 1 commits") {
+		t.Errorf("verify-import --since: %q, %v", out, err)
+	}
+	if _, err := run(t, append([]string{"verify-import"}, flags...)...); err == nil {
+		t.Error("verify-import without --all or --sample succeeded")
+	}
+	testutil.Git(t, gitDir, "commit", "-q", "--allow-empty", "-m", "not imported")
+	if out, err := run(t, append([]string{"verify-import", "--all"}, flags...)...); err == nil || !strings.Contains(out, "MISMATCH") {
+		t.Errorf("verify-import with an unimported commit: %q, %v", out, err)
+	}
 }
 
 func hexOf(sha [20]byte) string {

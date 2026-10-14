@@ -17,10 +17,13 @@ import (
 
 // VerifyOptions selects the commits VerifyImport checks.
 type VerifyOptions struct {
-	Branch        string // default "main"
-	Sample        int    // check this many random commits; 0 checks all
-	Seed          uint64 // sample seed (deterministic)
-	MaxViolations int    // default 100
+	Branch string // default "main"
+	Sample int    // check this many random commits; 0 checks all
+	Seed   uint64 // sample seed (deterministic)
+	// Since, if set, checks only commits not reachable from it (e.g. the tip
+	// before an incremental import).
+	Since         *gitsource.SHA
+	MaxViolations int // default 100
 }
 
 // VerifyReport is the result of VerifyImport.
@@ -57,8 +60,12 @@ func VerifyImport(ctx context.Context, r *repo.Repo, src *gitsource.Repo, opts V
 	if err != nil {
 		return nil, err
 	}
+	var exclude []gitsource.SHA
+	if opts.Since != nil {
+		exclude = append(exclude, *opts.Since)
+	}
 	var commits []gitsource.SHA
-	for sha, err := range src.RevList(ctx, tip) {
+	for sha, err := range src.RevList(ctx, tip, exclude...) {
 		if err != nil {
 			return nil, err
 		}

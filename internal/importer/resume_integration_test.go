@@ -5,6 +5,8 @@ package importer_test
 import (
 	"context"
 	"errors"
+	"os"
+	"path/filepath"
 	"strconv"
 	"testing"
 	"time"
@@ -127,6 +129,9 @@ func TestImportKillAndResume(t *testing.T) {
 	if report, err := r.Verify(ctx, repo.VerifyOptions{Objects: true}); err != nil || len(report.Violations) != 0 {
 		t.Fatalf("verify after resume: %v %v", report.Violations, err)
 	}
+	if report, err := importer.VerifyImport(ctx, r, src, importer.VerifyOptions{}); err != nil || len(report.Violations) != 0 || report.Commits != total {
+		t.Fatalf("verify-import after resume: %d commits, %v %v", report.Commits, report.Violations, err)
+	}
 }
 
 func TestImportStaleStateResumes(t *testing.T) {
@@ -152,5 +157,58 @@ func TestImportStaleStateResumes(t *testing.T) {
 	total, _ := strconv.Atoi(testutil.Git(t, dir, "rev-list", "--count", "main"))
 	if int(stats.Commits+rest.Commits) != total || rest.Existing != 0 {
 		t.Errorf("stale state: 20 + %d created (%d existing), want %d", rest.Commits, rest.Existing, total)
+	}
+}
+
+func TestImportIncremental(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	dir := testutil.CopyFixture(t, "edge")
+	src := openGit(t, dir)
+	r := repotest.New(t)
+	first := runImport(t, r, src, importer.Options{})
+	oldTip := first.Tip
+
+	// New history: edits, a delete, a symlink, an exec file, and a feature
+	// branch merged with a merge commit.
+	g := func(args ...string) { testutil.Git(t, dir, args...) }
+	write := func(path, content string) {
+		t.Helper()
+		if err := os.WriteFile(filepath.Join(dir, path), []byte(content), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	write("README", "changed after the first import\n")
+	g("rm", "-q", "empty.txt")
+	g("commit", "-q", "-am", "incremental: edit and delete")
+	g("checkout", "-q", "-b", "feature")
+	write("feature.txt", "feature\n")
+	if err := os.Symlink("feature.txt", filepath.Join(dir, "feature-link")); err != nil {
+		t.Fatal(err)
+	}
+	g("add", "-A")
+	g("commit", "-q", "-m", "feature: add file and link")
+	g("checkout", "-q", "main")
+	write("tool.sh", "#!/bin/sh\n")
+	g("add", "tool.sh")
+	g("update-index", "--chmod=+x", "tool.sh")
+	g("commit", "-q", "-m", "main: add tool")
+	g("merge", "-q", "--no-ff", "--no-edit", "feature")
+
+	second := runImport(t, r, src, importer.Options{})
+	newCount, _ := strconv.Atoi(testutil.Git(t, dir, "rev-list", "--count", "main", "^"+oldTip.String()))
+	if int(second.Commits) != newCount || second.Existing != 0 {
+		t.Fatalf("incremental import created %d changesets (%d existing), want %d new", second.Commits, second.Existing, newCount)
+	}
+	report, err := importer.VerifyImport(ctx, r, src, importer.VerifyOptions{Since: &oldTip})
+	if err != nil || len(report.Violations) != 0 || report.Commits != newCount {
+		t.Fatalf("verify-import --since: %d commits, %v %v", report.Commits, report.Violations, err)
+	}
+	main, _ := r.GetRef(ctx, repo.MainRef)
+	if gitSHAOf(t, r, main.ID) != second.Tip {
+		t.Error("main is not at the new tip")
+	}
+	if rep, err := r.Verify(ctx, repo.VerifyOptions{Objects: true}); err != nil || len(rep.Violations) != 0 {
+		t.Fatalf("verify: %v %v", rep.Violations, err)
 	}
 }
