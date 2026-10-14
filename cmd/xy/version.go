@@ -18,7 +18,7 @@ func newVersionCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "version",
 		Short: "Print version, commit and Go version",
-		Args:  cobra.NoArgs,
+		Args:  args(cobra.NoArgs),
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			_, err := fmt.Fprintf(cmd.OutOrStdout(), "xy %s (commit %s, %s %s/%s)\n",
 				version, buildCommit(), runtime.Version(), runtime.GOOS, runtime.GOARCH)
