@@ -37,6 +37,11 @@ func (r *Repo) GetRef(ctx context.Context, name string) (Ref, error) {
 	return ref, err
 }
 
+// ListRefs returns the refs whose names start with prefix, by name.
+func (r *Repo) ListRefs(ctx context.Context, prefix string) ([]Ref, error) {
+	return r.meta.ListRefs(ctx, r.id, prefix)
+}
+
 // UpdateRef moves ref name from expected to target (07 §UpdateRef). A zero
 // expected means the ref must not exist yet. Without force the update must be
 // a fast-forward along the first-parent chain; with force, the mainline is

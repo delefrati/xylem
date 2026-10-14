@@ -6,7 +6,7 @@
 
 ## Tasks
 
-- [ ] **M4.1 Server skeleton.** `xylemd server`: gRPC server on `--listen`, HTTP on `--http-listen` (`/healthz`, `/readyz`, `/metrics`), graceful shutdown on SIGTERM (drain for 10 s), and reflection enabled. Interceptors: request id, slog access log, Prometheus metrics, panic recovery, and an auth hook (no-op). Repo name → id resolution with a cache.
+- [x] **M4.1 Server skeleton.** `xylemd server`: gRPC server on `--listen`, HTTP on `--http-listen` (`/healthz`, `/readyz`, `/metrics`), graceful shutdown on SIGTERM (drain for 10 s), and reflection enabled. Interceptors: request id, slog access log, Prometheus metrics, panic recovery, and an auth hook (no-op). Repo name → id resolution with a cache.
 - [ ] **M4.2 `internal/revision`.** Parser for the syntax table in 03 (`main~3^2`, `git:abc123`, hex prefixes) and a resolver against `repo`. Ambiguity errors list candidates. Unit tests for the parser; integration tests for the resolver.
 - [ ] **M4.3 ObjectService Get/Has.** Parallel store reads (worker pool), an in-memory LRU of stored frames (`--object-cache-bytes`), streaming chunked at ~4 MiB, and `missing` reported in the final message. Return `Unimplemented` for `PutObjects` until M6.
 - [ ] **M4.4 Changeset and ref RPCs.** `ResolveRevision`, `GetChangesets` (with `include_changes`), `ListRefs`, `UpdateRef` (admin semantics via `repo.UpdateRef`). Add proto ↔ domain converters in `internal/server/convert.go` with round-trip tests.

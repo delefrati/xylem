@@ -41,6 +41,11 @@ func NewPG(pool *pgxpool.Pool) *PG {
 
 var _ Store = (*PG)(nil)
 
+// Ping checks that the database is reachable.
+func (p *PG) Ping(ctx context.Context) error {
+	return p.pool.Ping(ctx)
+}
+
 func isUniqueViolation(err error) bool {
 	var pgErr *pgconn.PgError
 	return errors.As(err, &pgErr) && pgErr.Code == "23505"

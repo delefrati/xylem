@@ -112,6 +112,7 @@ Verified on a fresh `git clone` of 3e549f4: `make tools && make up && make proto
 ## Log
 
 <!-- - YYYY-MM-DD M0.2: skeleton dirs + cobra roots (commit abc1234) -->
+- 2026-10-14 M4.1: internal/server (Server with Unimplemented services, 80 MiB limits, reflection; interceptors: request id, JSON access log, xylem_rpc_duration_seconds, panic recovery, auth hook; repo name cache; domain error → gRPC code mapping) and `xylemd server` (--listen, --http-listen, --object-cache-bytes; /healthz, /readyz = Postgres ping + store probe, /metrics; SIGTERM drains 10 s); ListRefs implemented early (exercises the stack); prometheus client_golang v1.24.1
 - 2026-10-14 M3: `make reset-db` now runs `xylemd migrate` (was a stub)
 - 2026-10-14 M3.8: tests — tiny/edge/branchy import + verify-import --all (0 mismatches); kill-and-resume now ends with verify-import --all; incremental import (edits, delete, symlink, exec, merged feature branch) creates only the new commits and verify-import --since checks just those; CLI verify-import (--all, --sample/--seed, --since, mismatch exit). Added VerifyOptions.Since / --since
 - 2026-10-14 M3.7: importer.VerifyImport + `xylemd verify-import --git (--all | --sample N --seed S)`: ls-tree vs in-process tree walk (paths, modes, sizes, content via git_blobs or re-hash); branchy --all compares 2,000 commits / 567k file entries with 0 mismatches; detects a wrong blob mapping, a wrong root tree and a partial import
