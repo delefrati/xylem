@@ -116,7 +116,11 @@ func (w *Workspace) Checkout(ctx context.Context, f *Fetcher, target Target, for
 		return nil, err
 	}
 
-	if !force {
+	if force { // also discard local changes to files the move leaves alone
+		if changes, err = w.restoreModified(ds, changes); err != nil {
+			return nil, err
+		}
+	} else {
 		if dirty, err := w.dirty(ds, changes); err != nil {
 			return nil, err
 		} else if len(dirty) > 0 {
@@ -200,6 +204,29 @@ func (w *Workspace) dirty(ds *Dirstate, changes []Change) ([][]byte, error) {
 		}
 	}
 	return out, nil
+}
+
+// restoreModified adds a rewrite for every tracked file outside changes that
+// differs from the dirstate, which matches the target there (--force).
+func (w *Workspace) restoreModified(ds *Dirstate, changes []Change) ([]Change, error) {
+	inChanges := make(map[string]bool, len(changes))
+	for _, c := range changes {
+		inChanges[string(c.Path)] = true
+	}
+	for _, e := range ds.Entries() {
+		if inChanges[string(e.Path)] {
+			continue
+		}
+		fc, err := checkFile(w.Root, ds, e.Path)
+		if err != nil {
+			return nil, err
+		}
+		if !fc.clean {
+			f := &FileEntry{Path: e.Path, Mode: e.Mode, ID: e.Blob}
+			changes = append(changes, Change{Path: e.Path, Old: f, New: f})
+		}
+	}
+	return changes, nil
 }
 
 // dirtyInside lists files under dir that removing it would lose: anything

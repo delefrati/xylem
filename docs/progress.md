@@ -129,6 +129,7 @@ Verified on a fresh `git clone` of 3e549f4: `make tools && make up && make proto
 
 <!-- - YYYY-MM-DD: CreateChangeset 10 files on 1k-file tree: p50 X ms, p99 Y ms (M2.9) -->
 
+- - M5.8 `xy status` on an unchanged branchy checkout (289 files), after the first run: 1.2 ms (12 ms with -race); target < 200 ms.
 - 2026-10-14: Blame RPC on branchy files (33 sampled, local, no -race): cold p50 15–46 ms (computes and stores the chain), warm p50 1.8–5.8 ms (target < 50 ms) (M4.10)
 - 2026-10-14: import external small repo spf13/cobra @adbc881 (1,106 commits, 114 merges, 1,861 blobs, 30.6 MB): 1.8 s ≈ 623 commits/s; verify-import --all 0 mismatches (50,483 files); verify 0 violations (M3)
 - 2026-10-14: import branchy via the binary into the dev DB with `fs://./data/objects` on the project drive: 14.4 s ≈ 139 commits/s — the FS store fsyncs every object and that drive is slow to fsync; the same import with the store in /tmp: 3.3 s ≈ 605 commits/s (M3)
@@ -138,6 +139,7 @@ Verified on a fresh `git clone` of 3e549f4: `make tools && make up && make proto
 ## Log
 
 <!-- - YYYY-MM-DD M0.2: skeleton dirs + cobra roots (commit abc1234) -->
+- - 2026-10-14 M5.8: `xy status` (gitignore via go-git's matcher, nested files and negations; racy-mtime rule; parallel hashing; dirstate refresh) and `xy diff [paths]` (git-format unified diff from cached base blobs). `checkout --force` now also restores locally modified tracked files the move doesn't touch, so it recovers from an interrupted checkout. Crash simulation test passes.
 - 2026-10-14 M5.7: client.Clone + `xy clone <server> <dir> [--repo --rev --sparse a,b] [--json]` (refuses a non-empty destination with exit 2, removes the directory it created on failure); full, sparse and older-revision clones of branchy match git
 - 2026-10-14 M5.6: checkout engine — scoped tree diff (equal subtrees skipped, out-of-scope trees never read) or reconcile on scope change, dirty check (modified tracked files, untracked files and non-empty directories in the way → exit 4 unless --force), fetch, apply (deletes + empty-dir pruning, then atomic writes, 0644/0755, symlinks via rename, type changes), dirstate, state.json last; matches git on every edge first-parent revision incl. file↔symlink↔dir
 - 2026-10-14 M5.5: client.Dirstate (XYLDS1 header + gob {written-at, entries sorted by path}, atomic Save stamping WrittenAtNs, bad/missing → ErrNoDirstate), RebuildDirstate (hash expected files; mismatches get MtimeNs 0), FileMode (git exec rule), HashFile (symlinks hash their target)

@@ -88,14 +88,6 @@ func m5(use, short string) *cobra.Command {
 	return &cobra.Command{Use: use, Short: short, RunE: notYet("M5")}
 }
 
-func newStatusCmd(*globals) *cobra.Command {
-	return m5("status", "Show changed files in the working copy")
-}
-
-func newDiffCmd(*globals) *cobra.Command {
-	return m5("diff [paths]", "Diff the working copy against @")
-}
-
 func newCheckoutCmd(*globals) *cobra.Command {
 	return m5("checkout <rev>", "Move the working copy to a revision")
 }
