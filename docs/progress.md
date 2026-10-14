@@ -17,6 +17,7 @@ Maintained by the implementing agent. Newest entries first within each section.
 ## Deviations from spec
 
 <!-- - YYYY-MM-DD M2.4: <what changed, why, doc updated: 04-derived-data.md> -->
+- 2026-10-14 M2.3: no standalone `MainlineRewind`; rewinds go through `CASRef(…, MainlineUpdate{Rewind, KeepThrough, Rows}, …)` so mainline changes always share the ref CAS transaction (03 §Invariants, 04 §Kind 2). `author_time`/`committer_time` columns are clamped to years 1–9999 (body stays exact; golden vector `changeset_non_utf8` uses MaxInt64). Store methods take a `RepoID`; batch getters return maps.
 - 2026-10-14 M2.2: 10-testing.md named the per-test template `xylem_template` in step 3 but `xylem_tmpl_<hash>` in step 2; uses the hashed name (built as `…_building`, renamed when complete); doc updated: 10-testing.md
 - 2026-10-14 M2.1: the migrations live in a root Go package `migrations` (embed.FS needs a Go file next to the .sql files); `schema_migrations(version, applied_at)` per ADR-018; `Migrate` refuses to run if the DB has a migration the binary does not know. Two targeted `//nolint:gosec` (G101) on the documented dev/test default DB URLs.
 - 2026-10-14 M1.5: `ValidateShape` also checks `parent_count ≤ 16` (shape part of rule 1) and that extra keys are non-empty UTF-8 (proto `map<string, bytes>` cannot carry invalid UTF-8 keys); `Summary()` also drops a trailing `\r` and replaces NUL with U+FFFD (Postgres TEXT cannot store NUL). Not hash-affecting.
@@ -68,6 +69,7 @@ Verified on a fresh `git clone` of 3e549f4: `make tools && make up && make proto
 ## Log
 
 <!-- - YYYY-MM-DD M0.2: skeleton dirs + cobra roots (commit abc1234) -->
+- 2026-10-14 M2.3: internal/meta Store + PG — repos (cached), InsertChangeset (one tx, ON CONFLICT, COPY > 1000 files), GetChangesets/GetCore/ResolvePrefix/GetByGitSHA/ChangesetFiles, GetRef/CreateRef/CASRef (mainline + ref_log in the same tx), MainlineLookup/MainlineAt, PathHistoryMainline (04 query); 13 integration tests incl. 10-way concurrent insert and CAS
 - 2026-10-14 M2.2: testutil.NewDB (template xylem_tmpl_<fingerprint> under advisory lock, per-test clone, dropped on cleanup); 20 parallel clones ≈ 0.1–0.23 s each
 - 2026-10-14 M2.1: migrations/0001_init.sql (verbatim from 03, no bugs found), meta.LoadMigrations/Migrate/Fingerprint (one tx per file, advisory lock), `xylemd migrate` (--db / XYLEM_DB_URL, --log-level); testutil.NewEmptyDB; pgx v5.11.0
 - 2026-10-14 M1.9: FuzzDecodeTree, FuzzDecodeChangeset (byte-identical re-encode), FuzzObjectDecode (content-level re-encode + Verify, since zstd frames are not canonical), all seeded from golden vectors; picked up by make fuzz
