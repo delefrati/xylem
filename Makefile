@@ -28,10 +28,10 @@ up: ## Start postgres + minio and wait until healthy and the bucket exists
 down: ## Stop local services (keeps volumes)
 	$(COMPOSE) down
 
-reset-db: ## Drop and recreate the xylem DB, then run migrations
+reset-db: build ## Drop and recreate the xylem DB, then run migrations
 	$(COMPOSE) exec -T postgres psql -U xylem -d postgres -v ON_ERROR_STOP=1 \
 		-c 'DROP DATABASE IF EXISTS xylem WITH (FORCE)' -c 'CREATE DATABASE xylem'
-	@echo "migrations: not yet implemented (M2)" # TODO(M2): bin/xylemd migrate
+	$(BIN)/xylemd migrate
 
 ## ---- code generation and build
 

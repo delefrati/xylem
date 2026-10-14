@@ -6,7 +6,7 @@ Maintained by the implementing agent. Newest entries first within each section.
 
 - **Current milestone:** M3 — Git import
 - **Last checkpoint approved by human:** M2 — 2026-10-14 (M1, golden vectors and M0 approved 2026-10-14)
-- **Blocked on:** —
+- **Blocked on:** human review of M3 (⛔ end of milestone)
 
 ## Open questions (for the human)
 
@@ -41,6 +41,19 @@ Maintained by the implementing agent. Newest entries first within each section.
 - 2026-10-14 M0.2: client CLI lives in `cmd/xy` (M0.2, binary name), not `cmd/xylem` as the layout tree said; doc updated: 02-architecture.md
 
 ## Milestone results
+
+### M3 — 2026-10-14
+
+Verified on 264455e (+ reset-db fix): `make up && make fixtures && make check` → exit 0; `bin/xylemd import --git testdata/fixtures/edge --branch main && bin/xylemd verify-import --git testdata/fixtures/edge --all` → 27 commits, 368 files, 0 mismatches.
+
+| Acceptance criterion | Evidence | Result |
+|---|---|---|
+| `verify-import --all` passes for tiny, edge, branchy | Binary against the dev DB: tiny 10 commits / 34 files, edge 27 / 368, branchy 2,000 / 567,366 — 0 mismatches each; same in integration tests | ✅ |
+| Re-running import on an up-to-date repo is a no-op (0 new changesets) in < 2 s | `imported 0 new commits` for each fixture, 0.01 s wall time | ✅ |
+| `main` points at the mapped tip and `xylemd verify --all` passes | verify-import checks main = mapped tip; `xylemd verify <repo> --all --objects` → 0 violations for all three | ✅ |
+| Import throughput logged for branchy (and the external small repo) | branchy 605 commits/s (/tmp store), 139/s (FS store on the slow project drive); spf13/cobra 623 commits/s, verify-import 0 mismatches | ✅ |
+
+**Summary:** git repositories import through a parallel, ordered pipeline (gitsource → mapping → blob upload → committer) that is resumable (checkpoints every batch and on interrupt, preloaded sha map, git_blobs table) and incremental (`--follow`, `--since`). Every edge case from 08 is in the `edge` fixture and verified tree for tree; a real repository (cobra) also matches exactly. A data race between the producer and the committer was found by `-race` and fixed. Worth a look: G204 `//nolint` at each git call site (ADR-010); the `git_blobs` migration landed with the pipeline; throughput depends on fsync speed of the FS store's disk.
 
 ### M2 — 2026-10-14
 
@@ -91,12 +104,15 @@ Verified on a fresh `git clone` of 3e549f4: `make tools && make up && make proto
 
 <!-- - YYYY-MM-DD: CreateChangeset 10 files on 1k-file tree: p50 X ms, p99 Y ms (M2.9) -->
 
+- 2026-10-14: import external small repo spf13/cobra @adbc881 (1,106 commits, 114 merges, 1,861 blobs, 30.6 MB): 1.8 s ≈ 623 commits/s; verify-import --all 0 mismatches (50,483 files); verify 0 violations (M3)
+- 2026-10-14: import branchy via the binary into the dev DB with `fs://./data/objects` on the project drive: 14.4 s ≈ 139 commits/s — the FS store fsyncs every object and that drive is slow to fsync; the same import with the store in /tmp: 3.3 s ≈ 605 commits/s (M3)
 - 2026-10-14: import branchy (2,000 commits, 5,413 blobs, 7.2 MB): 3.4 s ≈ 595 commits/s (local, mem store, 8 workers, no -race) (M3.4)
 - 2026-10-14: stress 10,000 changesets on a ~1,000-file tree (5.4% merges, 1,155 fast-forwards): created in 15.6–21.3 s (1.6–2.1 ms/changeset over 4 runs; one outlier run right after `make check` took 60.6 s / 6.1 ms), verify --all --objects in 3.4 s, 0 violations (M2.9)
 - 2026-10-14: CreateChangeset 10 files on 1k-file tree: p50 2.0 ms, p99 2.6 ms (local Postgres, mem store, no -race; 13.7 ms p50 under -race) (M2.6)
 ## Log
 
 <!-- - YYYY-MM-DD M0.2: skeleton dirs + cobra roots (commit abc1234) -->
+- 2026-10-14 M3: `make reset-db` now runs `xylemd migrate` (was a stub)
 - 2026-10-14 M3.8: tests — tiny/edge/branchy import + verify-import --all (0 mismatches); kill-and-resume now ends with verify-import --all; incremental import (edits, delete, symlink, exec, merged feature branch) creates only the new commits and verify-import --since checks just those; CLI verify-import (--all, --sample/--seed, --since, mismatch exit). Added VerifyOptions.Since / --since
 - 2026-10-14 M3.7: importer.VerifyImport + `xylemd verify-import --git (--all | --sample N --seed S)`: ls-tree vs in-process tree walk (paths, modes, sizes, content via git_blobs or re-hash); branchy --all compares 2,000 commits / 567k file entries with 0 mismatches; detects a wrong blob mapping, a wrong root tree and a partial import
 - 2026-10-14 M3.6: `xylemd import --git --branch --repo --follow --batch --limit --workers` with a progress line every 5 s (commits/s, blobs/s, bytes) and a summary; --follow polls until interrupted; e2e: branchy via the binary 2,000 commits in 3.3 s, no-op re-run 20 ms, verify clean; command test covers re-import and --follow picking up a new commit
