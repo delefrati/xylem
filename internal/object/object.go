@@ -9,6 +9,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"io"
 	"strconv"
 	"sync"
 
@@ -169,20 +170,65 @@ func parse(raw []byte) (Kind, []byte, error) {
 	if !ok {
 		return 0, nil, fmt.Errorf("%w: header has no NUL terminator", ErrCorrupt)
 	}
-	kindName, lenStr, ok := bytes.Cut(header, []byte{' '})
-	if !ok {
-		return 0, nil, fmt.Errorf("%w: header %q has no space", ErrCorrupt, header)
-	}
-	kind, ok := parseKind(kindName)
-	if !ok {
-		return 0, nil, fmt.Errorf("%w: unknown kind %q", ErrCorrupt, kindName)
-	}
-	n, err := strconv.Atoi(string(lenStr))
-	if err != nil || n < 0 || strconv.Itoa(n) != string(lenStr) {
-		return 0, nil, fmt.Errorf("%w: non-canonical length %q", ErrCorrupt, lenStr)
+	kind, n, err := parseHeader(header)
+	if err != nil {
+		return 0, nil, err
 	}
 	if n != len(body) {
 		return 0, nil, fmt.Errorf("%w: header says %d bytes, body has %d", ErrCorrupt, n, len(body))
 	}
 	return kind, body, nil
+}
+
+// parseHeader parses "<kind> <decimal length>" (without the NUL).
+func parseHeader(header []byte) (Kind, int, error) {
+	kindName, lenStr, ok := bytes.Cut(header, []byte{' '})
+	if !ok {
+		return 0, 0, fmt.Errorf("%w: header %q has no space", ErrCorrupt, header)
+	}
+	kind, ok := parseKind(kindName)
+	if !ok {
+		return 0, 0, fmt.Errorf("%w: unknown kind %q", ErrCorrupt, kindName)
+	}
+	n, err := strconv.Atoi(string(lenStr))
+	if err != nil || n < 0 || strconv.Itoa(n) != string(lenStr) {
+		return 0, 0, fmt.Errorf("%w: non-canonical length %q", ErrCorrupt, lenStr)
+	}
+	return kind, n, nil
+}
+
+// maxHeaderLen bounds a header: the longest kind, a space, 20 digits and NUL.
+const maxHeaderLen = len("changeset") + 1 + 20 + 1
+
+// streamDecoders are single-goroutine zstd stream decoders for PeekHeader.
+var streamDecoders = sync.Pool{New: func() any {
+	dec, err := zstd.NewReader(nil, zstd.WithDecoderConcurrency(1), zstd.WithDecoderMaxMemory(MaxDecodedSize))
+	if err != nil {
+		panic(fmt.Sprintf("object: creating zstd stream decoder: %v", err))
+	}
+	return dec
+}}
+
+// PeekHeader returns the kind and body length declared by a stored object's
+// header, decompressing only the first few bytes. It does not check the body
+// or the id (03 §Validation rule 3 uses it to check declared blob sizes).
+func PeekHeader(stored []byte) (Kind, int, error) {
+	dec := streamDecoders.Get().(*zstd.Decoder)
+	defer func() {
+		_ = dec.Reset(nil)
+		streamDecoders.Put(dec)
+	}()
+	if err := dec.Reset(bytes.NewReader(stored)); err != nil {
+		return 0, 0, fmt.Errorf("%w: zstd: %w", ErrCorrupt, err)
+	}
+	var buf [maxHeaderLen]byte
+	n, err := io.ReadFull(dec, buf[:])
+	if err != nil && !errors.Is(err, io.ErrUnexpectedEOF) && !errors.Is(err, io.EOF) {
+		return 0, 0, fmt.Errorf("%w: zstd: %w", ErrCorrupt, err)
+	}
+	header, _, ok := bytes.Cut(buf[:n], []byte{0})
+	if !ok {
+		return 0, 0, fmt.Errorf("%w: no header terminator in the first %d bytes", ErrCorrupt, n)
+	}
+	return parseHeader(header)
 }

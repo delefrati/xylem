@@ -17,6 +17,7 @@ Maintained by the implementing agent. Newest entries first within each section.
 ## Deviations from spec
 
 <!-- - YYYY-MM-DD M2.4: <what changed, why, doc updated: 04-derived-data.md> -->
+- 2026-10-14 M2.6: `CreateOptions` also has `TrustSizes` (03 rule 3 importer option); `Now` lives on `repo.Options` (one clock per Repo). Root changesets in an empty repo need no `AllowRoot` (03 rule 1). Added `object.PeekHeader` (streaming header-only read for rule 3). The `git-sha` extra must be 40 lowercase hex (it fills the `git_sha` column).
 - 2026-10-14 M2.5: `derived.Source` has `Core` and `Parents` (BFS and paint-down need all parents, which core_derived lacks); added `meta.Store.GetParents` (selects only the parents column). `ComputeCore` takes (id, parents, rootTree) rather than a whole changeset. Noted in code: with generation-ordered paint-down, step 4 (remove redundant) never drops anything; kept per spec and tested directly.
 - 2026-10-14 M2.4: `treeops.Apply` returns `[]NewTree{ID, Stored, Tree}` (stored bytes plus the decoded tree, so callers can store and cache) and also rejects duplicate paths (`ErrDuplicatePath`, found by the property test; changeset validation already rejects them, this is defense in depth). Deleting a directory path or through a file is `ErrDeleteMissing`.
 - 2026-10-14 M2.3: no standalone `MainlineRewind`; rewinds go through `CASRef(…, MainlineUpdate{Rewind, KeepThrough, Rows}, …)` so mainline changes always share the ref CAS transaction (03 §Invariants, 04 §Kind 2). `author_time`/`committer_time` columns are clamped to years 1–9999 (body stays exact; golden vector `changeset_non_utf8` uses MaxInt64). Store methods take a `RepoID`; batch getters return maps.
@@ -68,9 +69,11 @@ Verified on a fresh `git clone` of 3e549f4: `make tools && make up && make proto
 
 <!-- - YYYY-MM-DD: CreateChangeset 10 files on 1k-file tree: p50 X ms, p99 Y ms (M2.9) -->
 
+- 2026-10-14: CreateChangeset 10 files on 1k-file tree: p50 2.0 ms, p99 2.6 ms (local Postgres, mem store, no -race; 13.7 ms p50 under -race) (M2.6)
 ## Log
 
 <!-- - YYYY-MM-DD M0.2: skeleton dirs + cobra roots (commit abc1234) -->
+- 2026-10-14 M2.6: internal/repo — Open, CreateChangeset (07 steps 1–11: shape, parents, blob existence + header-size check, committer, encode, idempotency, Apply + store trees, ComputeCore, one tx), MissingBlobsError, domain errors; repotest.New/Put/Commit; 10 concurrent identical creates → 1 created + 9 already_existed
 - 2026-10-14 M2.5: internal/derived core — ComputeCore (gen, fp_depth, fp_parent, skew-binary jump), CachedSource (LRU over meta), AncestorAtDepth/IsFirstParentAncestor/IsAncestor/MergeBases; property tests vs naive on random DAGs (≤300 nodes, 199 criss-cross pairs) and a 10k-deep tree with an O(log) read bound; mutation-checked
 - 2026-10-14 M2.4: internal/treeops — Trees (LRU of decoded trees, golang-lru v2.0.7), Lookup, Apply (deletes+prune, puts, bottom-up encode; ErrDeleteMissing/ErrNoopPut/FileDirClashError/ErrDuplicatePath); property test: 1748 valid lists equal from-scratch builds, 2002 invalid rejected; mutation-checked
 - 2026-10-14 M2.3: internal/meta Store + PG — repos (cached), InsertChangeset (one tx, ON CONFLICT, COPY > 1000 files), GetChangesets/GetCore/ResolvePrefix/GetByGitSHA/ChangesetFiles, GetRef/CreateRef/CASRef (mainline + ref_log in the same tx), MainlineLookup/MainlineAt, PathHistoryMainline (04 query); 13 integration tests incl. 10-way concurrent insert and CAS

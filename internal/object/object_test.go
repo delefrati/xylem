@@ -301,3 +301,53 @@ func TestVerifyRejectsContentChangingMutations(t *testing.T) {
 		}
 	}
 }
+
+func TestPeekHeader(t *testing.T) {
+	t.Parallel()
+	big := make([]byte, 20<<20)
+	for _, tt := range []struct {
+		kind Kind
+		body []byte
+	}{
+		{KindBlob, nil},
+		{KindBlob, []byte("hello\n")},
+		{KindTree, []byte{0}},
+		{KindChangeset, bytes.Repeat([]byte("x"), 1000)},
+		{KindBlob, big},
+	} {
+		_, stored := Encode(tt.kind, tt.body)
+		kind, n, err := PeekHeader(stored)
+		if err != nil || kind != tt.kind || n != len(tt.body) {
+			t.Errorf("PeekHeader(%v, %d bytes) = %v, %d, %v", tt.kind, len(tt.body), kind, n, err)
+		}
+	}
+	for name, stored := range map[string][]byte{
+		"not zstd":     []byte("blob 3\x00abc"),
+		"no NUL":       compressRaw(bytes.Repeat([]byte("a"), 100)),
+		"bad kind":     compressRaw([]byte("file 3\x00abc")),
+		"leading zero": compressRaw([]byte("blob 03\x00abc")),
+		"empty":        nil,
+	} {
+		if _, _, err := PeekHeader(stored); !errors.Is(err, ErrCorrupt) {
+			t.Errorf("%s: PeekHeader error = %v, want ErrCorrupt", name, err)
+		}
+	}
+}
+
+func TestPeekHeaderConcurrent(t *testing.T) {
+	t.Parallel()
+	var wg sync.WaitGroup
+	for g := range 32 {
+		wg.Go(func() {
+			for i := range 100 {
+				body := bytes.Repeat(fmt.Appendf(nil, "g%d", g), i*37)
+				_, stored := Encode(KindBlob, body)
+				if _, n, err := PeekHeader(stored); err != nil || n != len(body) {
+					t.Errorf("g%d i%d: %d, %v", g, i, n, err)
+					return
+				}
+			}
+		})
+	}
+	wg.Wait()
+}
