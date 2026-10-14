@@ -17,6 +17,7 @@ Maintained by the implementing agent. Newest entries first within each section.
 ## Deviations from spec
 
 <!-- - YYYY-MM-DD M2.4: <what changed, why, doc updated: 04-derived-data.md> -->
+- 2026-10-14 M3.3: mapping details beyond 08: 100664 (old git) maps to FILE; git changes invisible in Xylem (same blob, same mapped mode) are dropped instead of becoming no-op PUTs; type changes involving a submodule map to DELETE (file→gitlink) or PUT (gitlink→file); `git-extra-submodules` lists the gitlink paths each commit touched. Warnings for skipped submodules are emitted (deduplicated per path) by the pipeline from `Mapped.Submodules`.
 - 2026-10-14 M3.2: gitsource rejects sha256 repositories (git_sha is 20 bytes); DiffTree runs one diff-tree process per commit (the importer parallelizes); added LsTree (for verify-import), IsAncestor and FirstParentChain helpers. Commit headers other than tree/parent/author/committer/encoding (gpgsig, mergetag) are not kept.
 - 2026-10-14 M3.1: tests get fixtures through `testutil.GitFixture(t, profile)`, cached in `~/.cache/xylem-fixtures/<hash of generators>/` (atomic rename), so CI needs no `make fixtures` step; `make fixtures` still fills `testdata/fixtures/`. `edge` needs `openssl` (deterministic 11 MiB binary). G204 (subprocess with variable args) is suppressed with `//nolint:gosec` at each git/fixture call site (ADR-010: shelling out to git is the design) rather than in config — for human review.
 - 2026-10-14 M2.9: under `-race` (as in `make check`) TestStress runs 1,000 changesets instead of 10,000 to keep `make check` fast; the milestone verification command (no -race) runs the full 10,000.
@@ -92,6 +93,7 @@ Verified on a fresh `git clone` of 3e549f4: `make tools && make up && make proto
 ## Log
 
 <!-- - YYYY-MM-DD M0.2: skeleton dirs + cobra roots (commit abc1234) -->
+- 2026-10-14 M3.3: importer.MapCommit (modes, A/M/T→PUT, D→DELETE, submodules skipped + extra, git-sha/git-encoding extras, exact signatures, `.xylem` paths → ErrUnsupportedPath) and BlobsNeeded; every edge-fixture commit maps to a shape-valid changeset; 97.5% coverage
 - 2026-10-14 M3.2: internal/gitsource — Open (sha1 check), ResolveBranch, RevList (streamed iter.Seq2), CatFilePool (N long-lived cat-file --batch, lazy start, process replaced on stream errors), ReadCommit/ParseCommit, DiffTree (-z --raw --no-renames), LsTree; tests compare against git output on every tiny/edge commit; 80% coverage
 - 2026-10-14 M3.1: scripts/make-fixture-repo.sh (tiny: 10 commits; edge: 27 commits, 2 roots, octopus, side-first merge, file↔symlink↔dir, exec flips, odd paths, 11 MiB binary, empty commit, ISO-8859-1 header, submodule add/move/remove) and scripts/genrepo (branchy: 2,000 commits, 81 merges via fast-import in ~1.6 s); all deterministic and pinned by sha; `make fixtures`; testutil.GitFixture/CopyFixture/Git
 - 2026-10-14 M2.9: TestStress — 10k changesets, random puts/deletes, ~5% merges via a side branch, main fast-forwarded in steps, full Verify with objects → 0 violations
