@@ -9,7 +9,7 @@
 - [x] **M5.1 CLI skeleton.** Cobra command tree for every MVP command in 06 (unimplemented ones print "not yet implemented (M6)"). Add global flags, exit codes, `--json` plumbing, and a gRPC connection factory (`host:port`, with `unix://` reserved for M8).
 - [x] **M5.2 Workspace.** `client.Workspace` with `Init(dir, cfg)` and `Open(dir)` (walks up from cwd to find `.xylem/`). Atomic `state.json` writes and `flock` on `.xylem/lock` for mutating commands. Load and save `config.toml`.
 - [x] **M5.3 Local object cache.** Sharded files under `.xylem/objects`, verify on insert, size accounting, LRU eviction by atime, and `xy cache stats|gc`.
-- [ ] **M5.4 Fetcher.** Scoped breadth-first tree fetch, then blob fetch, with batching (≤ 1024), 8 concurrent streams, and progress reporting to stderr on a TTY. Sparse scope helper (`InScope(path)`) with tests for prefix and under semantics.
+- [x] **M5.4 Fetcher.** Scoped breadth-first tree fetch, then blob fetch, with batching (≤ 1024), 8 concurrent streams, and progress reporting to stderr on a TTY. Sparse scope helper (`InScope(path)`) with tests for prefix and under semantics.
 - [ ] **M5.5 Dirstate.** Format per 06 (`XYLDS1` header, gob, written-at timestamp), atomic save, and rebuild-by-hashing when missing.
 - [ ] **M5.6 Checkout engine.** Diff the current and target trees (scoped), dirty check, fetch, apply (atomic writes, modes, symlinks, empty-dir cleanup), update dirstate, write state last. Handle type changes (file ↔ symlink ↔ dir) by removing before writing.
 - [ ] **M5.7 `xy clone`.** Full and `--sparse`. Fails if the target dir exists and isn't empty.
