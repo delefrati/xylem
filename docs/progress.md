@@ -4,9 +4,9 @@ Maintained by the implementing agent. Newest entries first within each section.
 
 ## Status
 
-- **Current milestone:** M3 — Git import
-- **Last checkpoint approved by human:** M2 — 2026-10-14 (M1, golden vectors and M0 approved 2026-10-14)
-- **Blocked on:** human review of M3 (⛔ end of milestone)
+- **Current milestone:** M4 — Read API and parity
+- **Last checkpoint approved by human:** M3 — 2026-10-14 (M2, M1, golden vectors and M0 approved 2026-10-14)
+- **Blocked on:** —
 
 ## Open questions (for the human)
 
@@ -44,7 +44,7 @@ Maintained by the implementing agent. Newest entries first within each section.
 
 ### M3 — 2026-10-14
 
-Verified on 264455e (+ reset-db fix): `make up && make fixtures && make check` → exit 0; `bin/xylemd import --git testdata/fixtures/edge --branch main && bin/xylemd verify-import --git testdata/fixtures/edge --all` → 27 commits, 368 files, 0 mismatches.
+Approved by the human 2026-10-14. Verified on 264455e (+ reset-db fix): `make up && make fixtures && make check` → exit 0; `bin/xylemd import --git testdata/fixtures/edge --branch main && bin/xylemd verify-import --git testdata/fixtures/edge --all` → 27 commits, 368 files, 0 mismatches.
 
 | Acceptance criterion | Evidence | Result |
 |---|---|---|
