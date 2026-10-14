@@ -6,7 +6,7 @@ Maintained by the implementing agent. Newest entries first within each section.
 
 - **Current milestone:** M0 — Bootstrap
 - **Last checkpoint approved by human:** — (plan approved: 2026-10-14)
-- **Blocked on:** —
+- **Blocked on:** human review of M0 (⛔ end of milestone), incl. ADR-020 (Proposed) and the first CI run after push
 
 ## Open questions (for the human)
 
@@ -22,6 +22,19 @@ Maintained by the implementing agent. Newest entries first within each section.
 - 2026-10-14 M0.2: client CLI lives in `cmd/xy` (M0.2, binary name), not `cmd/xylem` as the layout tree said; doc updated: 02-architecture.md
 
 ## Milestone results
+
+### M0 — 2026-10-14
+
+Verified on a fresh `git clone` of 3e549f4: `make tools && make up && make proto && make check` → exit 0 (23 s with warm caches); `git status --porcelain` empty afterwards.
+
+| Acceptance criterion | Evidence | Result |
+|---|---|---|
+| `make tools && make up && make proto && make check` passes on a clean clone | Clean-clone run above; golangci-lint 0 issues, `go test -race -tags integration ./...` ok, build ok | ✅ |
+| `bin/xy version` and `bin/xylemd version` print the version info | `xy 3e549f4 (commit 3e549f4, go1.27.2 linux/amd64)`, same for `xylemd`; covered by `TestVersionCommand` | ✅ |
+| `buf lint` passes on the proto files | `buf lint` (STANDARD) clean on the 4 protos copied verbatim from 05-api.md | ✅ |
+| CI is green on the first push | Workflow passes actionlint; MinIO start/bucket steps simulated locally. **Not pushed yet** | ⏳ pending push |
+
+**Summary:** the repo builds, lints, tests, generates protobuf code (committed, freshness-checked), runs Postgres 17.11 and MinIO locally, and has CI. One design change needs approval: **ADR-020** (upstream MinIO images are gone; using pinned `pgsty/minio` and `pgsty/mc`). For the end-of-M0 checkpoint, please confirm the module path (`github.com/delefrati/xylem`), the project name, and the tool choices (versions in `tools.mk`).
 
 <!--
 ### M1 — YYYY-MM-DD
