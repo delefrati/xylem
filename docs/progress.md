@@ -4,9 +4,9 @@ Maintained by the implementing agent. Newest entries first within each section.
 
 ## Status
 
-- **Current milestone:** M1 — Core objects and stores
-- **Last checkpoint approved by human:** M1.8 golden vectors — 2026-10-14 (M0 approved 2026-10-14)
-- **Blocked on:** human review of M1 (⛔ end of milestone)
+- **Current milestone:** M2 — Metadata and commit engine
+- **Last checkpoint approved by human:** M1 — 2026-10-14 (golden vectors approved 2026-10-14; M0 approved 2026-10-14)
+- **Blocked on:** —
 
 ## Open questions (for the human)
 
