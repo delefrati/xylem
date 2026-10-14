@@ -49,6 +49,7 @@ Verified on a fresh `git clone` of 3e549f4: `make tools && make up && make proto
 ## Log
 
 <!-- - YYYY-MM-DD M0.2: skeleton dirs + cobra roots (commit abc1234) -->
+- 2026-10-14 M1.2: internal/paths — ValidName/ValidPath (rule-specific errors), Split/Join/Parent/Base, IsUnder (dir itself counts; root = empty), Compare, DirPrefixRange (strictly below dir, nil = open); 100% coverage; FuzzValidPath 30 s clean
 - 2026-10-14 M1.1: internal/hash — ID, Sum, String/Short/IsZero, Compare, ParseHex, ParsePrefix (lo/hi byte range); blake3 v0.2.4, go-cmp v0.7.0; 100% coverage, BLAKE3 official vectors
 - 2026-10-14 M0.8: cmd/xylemd/main_test.go (version output, link-time and fallback; rejects args), README Getting started
 - 2026-10-14 M0.7: .github/workflows/ci.yml — lint, unit, integration (postgres service + MinIO step + mc mb step), build, proto freshness; actionlint clean, MinIO steps simulated locally; not yet pushed
