@@ -17,6 +17,7 @@ Maintained by the implementing agent. Newest entries first within each section.
 ## Deviations from spec
 
 <!-- - YYYY-MM-DD M2.4: <what changed, why, doc updated: 04-derived-data.md> -->
+- 2026-10-14 M4.4: GetChangesets returns NotFound if any requested id is unknown (the response has no "missing" field); ResolveRevision requires a revision (no default); UpdateRef records the actor as `rpc:<request id>` until M9 auth; `on_mainline` refers to main.
 - 2026-10-14 M4.3: GetObjects packs objects up to ~1 MiB per message (05 §Conventions, the wire contract) rather than the ~4 MiB in the M4.3 task text; frames larger than a quarter of --object-cache-bytes are not cached; ObjectService checks that the repo exists (objects themselves are shared across repos in the MVP).
 - 2026-10-14 M4.2: revision details beyond 03: `~`/`^` without a count mean 1 and `^0` is the revision itself (as in git); a name that is both a ref and a hex prefix resolves as the ref; `git:` accepts 4–40 hex characters; `@` is rejected server-side with InvalidArgument. Added meta.ResolveGitPrefix and candidate lists in ambiguity errors (repo.ResolveHex/ResolveGitSHA).
 - 2026-10-14 M3.7: verify-import also reports commits that are not imported and checks that main is at the mapped branch tip; content falls back to re-hashing the git blob when a git_blobs row is missing. The git_blobs migration itself landed in M3.4.
@@ -114,6 +115,7 @@ Verified on a fresh `git clone` of 3e549f4: `make tools && make up && make proto
 ## Log
 
 <!-- - YYYY-MM-DD M0.2: skeleton dirs + cobra roots (commit abc1234) -->
+- 2026-10-14 M4.4: ResolveRevision, GetChangesets (request order, ≤1000, include_changes, on_mainline via batched mainline lookup), ListRefs, UpdateRef (admin semantics); internal/server/convert.go (modes, ops, signatures with nanos = 0 enforced, changes, changesets) with round-trip tests; repo.Changesets/MainlineDepths/ListRefs
 - 2026-10-14 M4.3: ObjectService GetObjects (≤1024 ids, 16 parallel reads, byte-bounded LRU of stored frames, ~1 MiB packing, large objects alone, missing in the final message) and HasObjects (cache first, request order); PutObjects → Unimplemented until M6
 - 2026-10-14 M4.2: internal/revision Parse/String (refs, ≥8-hex prefixes, git:<sha>, @, chained ~N/^N) and Resolve against repo (jump pointers for ~N, parent lists for ^N, ambiguity → InvalidArgument with up to 5 candidates)
 - 2026-10-14 fix(m3): CI integration failed on the M3 push — make-fixture-repo.sh wrote ../msg.txt (outside its dir, into the shared fixture cache), so concurrent cold-cache generations collided; the message now goes through stdin; added a 4-way concurrent generation test

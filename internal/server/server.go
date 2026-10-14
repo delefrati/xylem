@@ -5,6 +5,7 @@ package server
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"sync"
 
@@ -146,4 +147,12 @@ func toStatus(err error) error {
 	default:
 		return status.Error(codes.Internal, err.Error())
 	}
+}
+
+func invalidf(format string, args ...any) error {
+	return status.Error(codes.InvalidArgument, fmt.Sprintf(format, args...))
+}
+
+func notFoundf(format string, args ...any) error {
+	return status.Error(codes.NotFound, fmt.Sprintf(format, args...))
 }
