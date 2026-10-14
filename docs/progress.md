@@ -17,6 +17,7 @@ Maintained by the implementing agent. Newest entries first within each section.
 ## Deviations from spec
 
 <!-- - YYYY-MM-DD M2.4: <what changed, why, doc updated: 04-derived-data.md> -->
+- 2026-10-14 M4.2: revision details beyond 03: `~`/`^` without a count mean 1 and `^0` is the revision itself (as in git); a name that is both a ref and a hex prefix resolves as the ref; `git:` accepts 4–40 hex characters; `@` is rejected server-side with InvalidArgument. Added meta.ResolveGitPrefix and candidate lists in ambiguity errors (repo.ResolveHex/ResolveGitSHA).
 - 2026-10-14 M3.7: verify-import also reports commits that are not imported and checks that main is at the mapped branch tip; content falls back to re-hashing the git blob when a git_blobs row is missing. The git_blobs migration itself landed in M3.4.
 - 2026-10-14 M3.6: `xylemd import` also takes --db, --store and --workers, and creates the Xylem repo if missing (`--repo`, default "default"). xylemd now runs commands under a SIGINT/SIGTERM-cancelled context so an interrupted import checkpoints and resumes.
 - 2026-10-14 M3.4: `migrations/0002_git_blobs.sql` (verbatim from 08) lands with the pipeline, which fills it, rather than in M3.7. The importer talks to the database through new `repo` methods (OpenOrCreate, GitSHAMap, ImportState/SetImportState, GitBlobs/RecordGitBlobs, Changeset), keeping importer → repo (not meta). Blob dedup across workers uses x/sync/singleflight. Blob existence is checked per blob (Has/Put) inside the singleflight rather than in per-commit batches.
@@ -112,6 +113,7 @@ Verified on a fresh `git clone` of 3e549f4: `make tools && make up && make proto
 ## Log
 
 <!-- - YYYY-MM-DD M0.2: skeleton dirs + cobra roots (commit abc1234) -->
+- 2026-10-14 M4.2: internal/revision Parse/String (refs, ≥8-hex prefixes, git:<sha>, @, chained ~N/^N) and Resolve against repo (jump pointers for ~N, parent lists for ^N, ambiguity → InvalidArgument with up to 5 candidates)
 - 2026-10-14 fix(m3): CI integration failed on the M3 push — make-fixture-repo.sh wrote ../msg.txt (outside its dir, into the shared fixture cache), so concurrent cold-cache generations collided; the message now goes through stdin; added a 4-way concurrent generation test
 - 2026-10-14 M4.1: internal/server (Server with Unimplemented services, 80 MiB limits, reflection; interceptors: request id, JSON access log, xylem_rpc_duration_seconds, panic recovery, auth hook; repo name cache; domain error → gRPC code mapping) and `xylemd server` (--listen, --http-listen, --object-cache-bytes; /healthz, /readyz = Postgres ping + store probe, /metrics; SIGTERM drains 10 s); ListRefs implemented early (exercises the stack); prometheus client_golang v1.24.1
 - 2026-10-14 M3: `make reset-db` now runs `xylemd migrate` (was a stub)

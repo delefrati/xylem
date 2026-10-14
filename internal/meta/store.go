@@ -87,6 +87,12 @@ type RefLogEntry struct {
 	Reason string // "land", "import", "admin"
 }
 
+// GitMatch is an imported changeset found by git sha prefix.
+type GitMatch struct {
+	GitSHA []byte
+	ID     hash.ID
+}
+
 // PathHit is a changeset that changed a path, with its seq.
 type PathHit struct {
 	ChangesetID hash.ID
@@ -117,6 +123,9 @@ type Store interface {
 	// nil hi is unbounded (see hash.ParsePrefix).
 	ResolvePrefix(ctx context.Context, repo RepoID, lo, hi []byte, limit int) ([]hash.ID, error)
 	GetByGitSHA(ctx context.Context, repo RepoID, sha []byte) (hash.ID, error)
+	// ResolveGitPrefix returns up to limit imported changesets whose git sha
+	// is in [lo, hi), by git sha; a nil hi is unbounded.
+	ResolveGitPrefix(ctx context.Context, repo RepoID, lo, hi []byte, limit int) ([]GitMatch, error)
 	ChangesetFiles(ctx context.Context, repo RepoID, id hash.ID) ([]FileRow, error)
 	// FilesFor returns the file rows of several changesets, each ordered by path.
 	FilesFor(ctx context.Context, repo RepoID, ids []hash.ID) (map[hash.ID][]FileRow, error)

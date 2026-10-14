@@ -129,3 +129,28 @@ func (p *PG) InsertGitBlobs(ctx context.Context, repo RepoID, blobs []GitBlob) e
 	}
 	return nil
 }
+
+// ResolveGitPrefix implements Store.
+func (p *PG) ResolveGitPrefix(ctx context.Context, repo RepoID, lo, hi []byte, limit int) ([]GitMatch, error) {
+	rows, err := p.pool.Query(ctx, `
+		SELECT git_sha, id FROM changesets
+		WHERE repo_id = $1 AND git_sha >= $2 AND ($3::bytea IS NULL OR git_sha < $3)
+		ORDER BY git_sha LIMIT $4`, repo, lo, hi, limit)
+	if err != nil {
+		return nil, fmt.Errorf("resolving git prefix: %w", err)
+	}
+	out, err := pgx.CollectRows(rows, func(row pgx.CollectableRow) (GitMatch, error) {
+		var m GitMatch
+		var id []byte
+		if err := row.Scan(&m.GitSHA, &id); err != nil {
+			return m, err
+		}
+		var err error
+		m.ID, err = toID(id)
+		return m, err
+	})
+	if err != nil {
+		return nil, fmt.Errorf("resolving git prefix: %w", err)
+	}
+	return out, nil
+}

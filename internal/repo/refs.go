@@ -1,10 +1,13 @@
 package repo
 
 import (
+	"bytes"
 	"context"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"regexp"
+	"strings"
 
 	"github.com/delefrati/xylem/internal/changeset"
 	"github.com/delefrati/xylem/internal/derived"
@@ -211,24 +214,89 @@ func (r *Repo) ensureEmptyTree(ctx context.Context) error {
 	return r.objs.Put(ctx, id, stored)
 }
 
+// MaxCandidates is how many matches an ambiguous prefix error lists.
+const MaxCandidates = 5
+
 // ResolveHex resolves a full hex id or a unique prefix of at least 8 hex
-// characters to a changeset id. (The full revision syntax is M4's
-// internal/revision.)
+// characters to a changeset id. An ambiguous prefix fails with ErrInvalid
+// listing up to MaxCandidates matches.
 func (r *Repo) ResolveHex(ctx context.Context, s string) (hash.ID, error) {
 	lo, hi, err := hash.ParsePrefix(s)
 	if err != nil {
 		return hash.ID{}, fmt.Errorf("%w: %w", ErrInvalid, err)
 	}
-	ids, err := r.meta.ResolvePrefix(ctx, r.id, lo, hi, 2)
+	ids, err := r.meta.ResolvePrefix(ctx, r.id, lo, hi, MaxCandidates)
 	if err != nil {
 		return hash.ID{}, err
 	}
+	return pickOne(s, ids, func(id hash.ID) string { return id.Short(16) })
+}
+
+// ResolveGitSHA resolves an imported changeset by its git sha or a unique
+// prefix of it (hex, lowercase).
+func (r *Repo) ResolveGitSHA(ctx context.Context, prefix string) (hash.ID, error) {
+	lo, hi, err := gitPrefixRange(prefix)
+	if err != nil {
+		return hash.ID{}, err
+	}
+	matches, err := r.meta.ResolveGitPrefix(ctx, r.id, lo, hi, MaxCandidates)
+	if err != nil {
+		return hash.ID{}, err
+	}
+	ids := make([]hash.ID, len(matches))
+	names := map[hash.ID]string{}
+	for i, m := range matches {
+		ids[i] = m.ID
+		names[m.ID] = fmt.Sprintf("git:%x", m.GitSHA)
+	}
+	return pickOne("git:"+prefix, ids, func(id hash.ID) string { return names[id] })
+}
+
+func pickOne(what string, ids []hash.ID, name func(hash.ID) string) (hash.ID, error) {
 	switch len(ids) {
 	case 0:
-		return hash.ID{}, fmt.Errorf("%w: no changeset %s", ErrNotFound, s)
+		return hash.ID{}, fmt.Errorf("%w: no changeset %s", ErrNotFound, what)
 	case 1:
 		return ids[0], nil
 	default:
-		return hash.ID{}, fmt.Errorf("%w: prefix %s is ambiguous", ErrInvalid, s)
+		var list []string
+		for _, id := range ids {
+			list = append(list, name(id))
+		}
+		more := ""
+		if len(ids) == MaxCandidates {
+			more = ", …"
+		}
+		return hash.ID{}, fmt.Errorf("%w: %s is ambiguous: %s%s", ErrInvalid, what, strings.Join(list, ", "), more)
 	}
+}
+
+// gitPrefixRange converts a hex git sha prefix (any length up to 40) into a
+// byte range, like hash.ParsePrefix but for 20-byte shas.
+func gitPrefixRange(prefix string) (lo, hi []byte, err error) {
+	if len(prefix) == 0 || len(prefix) > 40 {
+		return nil, nil, fmt.Errorf("%w: git sha prefix %q", ErrInvalid, prefix)
+	}
+	padded := prefix
+	if len(padded)%2 == 1 {
+		padded += "0"
+	}
+	lo, err = hex.DecodeString(padded)
+	if err != nil {
+		return nil, nil, fmt.Errorf("%w: git sha prefix %q", ErrInvalid, prefix)
+	}
+	hi = bytes.Clone(lo)
+	step := byte(1)
+	if len(prefix)%2 == 1 {
+		step = 0x10
+	}
+	for i := len(hi) - 1; i >= 0; i-- {
+		carry := hi[i] > 0xff-step
+		hi[i] += step
+		if !carry {
+			return lo, hi, nil
+		}
+		step = 1
+	}
+	return lo, nil, nil
 }
