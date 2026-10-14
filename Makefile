@@ -23,8 +23,7 @@ help: ## List targets
 .PHONY: up down reset-db
 up: ## Start postgres + minio and wait until healthy and the bucket exists
 	$(COMPOSE) up -d --wait postgres minio
-	$(COMPOSE) up -d minio-init
-	@test "$$($(COMPOSE) wait minio-init)" = 0 || { echo "minio-init failed"; $(COMPOSE) logs minio-init; exit 1; }
+	$(COMPOSE) run --rm --quiet-pull minio-init
 
 down: ## Stop local services (keeps volumes)
 	$(COMPOSE) down

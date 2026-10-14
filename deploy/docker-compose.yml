@@ -1,0 +1,35 @@
+name: xylem
+services:
+  postgres:
+    image: postgres:17.11
+    environment:
+      POSTGRES_USER: xylem
+      POSTGRES_PASSWORD: xylem
+      POSTGRES_DB: xylem
+    ports: ["54329:5432"]           # non-default port avoids clashing with a local Postgres
+    command: ["postgres", "-c", "max_connections=300", "-c", "fsync=off", "-c", "synchronous_commit=off"]  # dev only
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U xylem"]
+      interval: 2s
+      retries: 30
+    volumes: [pgdata:/var/lib/postgresql/data]
+  minio:
+    image: pgsty/minio:RELEASE.2026-08-04T00-00-00Z   # community MinIO build; upstream images are gone (ADR-020)
+    command: server /data --console-address :9001
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 2s
+      retries: 30
+    environment:
+      MINIO_ROOT_USER: xylem
+      MINIO_ROOT_PASSWORD: xylemxylem
+    ports: ["59000:9000", "59001:9001"]
+    volumes: [miniodata:/data]
+  minio-init:
+    image: pgsty/mc:RELEASE.2026-09-16T00-00-00Z     # ADR-020
+    depends_on:
+      minio: { condition: service_healthy }
+    entrypoint: >
+      /bin/sh -c "until mc alias set local http://minio:9000 xylem xylemxylem; do sleep 1; done;
+                  mc mb -p local/xylem-objects; exit 0"
+volumes: { pgdata: {}, miniodata: {} }

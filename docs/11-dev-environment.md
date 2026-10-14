@@ -17,7 +17,7 @@ Target: Linux (Ubuntu-like) with Docker. macOS should also work.
 name: xylem
 services:
   postgres:
-    image: postgres:17
+    image: postgres:17.11
     environment:
       POSTGRES_USER: xylem
       POSTGRES_PASSWORD: xylem
@@ -30,7 +30,7 @@ services:
       retries: 30
     volumes: [pgdata:/var/lib/postgresql/data]
   minio:
-    image: minio/minio:latest        # pin to a specific RELEASE.* tag in M0
+    image: pgsty/minio:RELEASE.2026-08-04T00-00-00Z   # community MinIO build; upstream images are gone (ADR-020)
     command: server /data --console-address :9001
     healthcheck:
       test: ["CMD", "mc", "ready", "local"]
@@ -42,7 +42,7 @@ services:
     ports: ["59000:9000", "59001:9001"]
     volumes: [miniodata:/data]
   minio-init:
-    image: minio/mc:latest           # pin to a specific RELEASE.* tag in M0
+    image: pgsty/mc:RELEASE.2026-09-16T00-00-00Z     # ADR-020
     depends_on:
       minio: { condition: service_healthy }
     entrypoint: >
@@ -58,8 +58,8 @@ volumes: { pgdata: {}, miniodata: {} }
 | Target | Does |
 |---|---|
 | `make tools` | Install pinned buf, golangci-lint, grpcurl, protoc-gen-go and protoc-gen-go-grpc into `./bin` |
-| `make up` / `make down` | `docker compose -f deploy/docker-compose.yml up -d --wait` / `down` |
-| `make reset-db` | Drop and recreate the `xy` DB, then run migrations |
+| `make up` / `make down` | `docker compose -f deploy/docker-compose.yml up -d --wait postgres minio`, then `run --rm minio-init` (blocks until the bucket exists) / `down` |
+| `make reset-db` | Drop and recreate the `xylem` DB, then run migrations |
 | `make proto` | `buf lint && buf generate` |
 | `make build` | `go build -o bin/ ./cmd/...` with `-ldflags "-X main.version=$(git describe --always --dirty)"` |
 | `make test` | `go test ./...` (unit only, no Docker) |
