@@ -192,6 +192,9 @@ func (im *Importer) Run(ctx context.Context) (Stats, error) {
 			return nil
 		})
 	}
+	// shaMap is read-only from here on (the producer reads it concurrently);
+	// the committer records this run's commits in added.
+	added := map[[20]byte]hash.ID{}
 	g.Go(func() error { // committer, strictly in topological order
 		warned := map[string]bool{}
 		for j := range ordered {
@@ -204,11 +207,17 @@ func (im *Importer) Run(ctx context.Context) (Stats, error) {
 			if res.err != nil {
 				return res.err
 			}
-			id, err := im.commit(gctx, res, shaMap, warned)
+			id, err := im.commit(gctx, res, func(s gitsource.SHA) (hash.ID, bool) {
+				if id, ok := added[s]; ok {
+					return id, true
+				}
+				id, ok := shaMap[s]
+				return id, ok
+			}, warned)
 			if err != nil {
 				return err
 			}
-			shaMap[j.sha] = id
+			added[j.sha] = id
 			ck.lastSHA = j.sha
 			if fpChain[j.sha] {
 				ck.lastOnChain = id
@@ -340,11 +349,11 @@ func (im *Importer) storeBlob(ctx context.Context, s gitsource.SHA) (BlobInfo, e
 }
 
 // commit creates the changeset for one prepared commit.
-func (im *Importer) commit(ctx context.Context, res jobResult, shaMap map[[20]byte]hash.ID, warned map[string]bool) (hash.ID, error) {
+func (im *Importer) commit(ctx context.Context, res jobResult, mapped func(gitsource.SHA) (hash.ID, bool), warned map[string]bool) (hash.ID, error) {
 	c := res.commit
 	parents := make([]hash.ID, len(c.Parents))
 	for i, p := range c.Parents {
-		id, ok := shaMap[p]
+		id, ok := mapped(p)
 		if !ok {
 			return hash.ID{}, fmt.Errorf("commit %s: parent %s not imported", c.SHA, p)
 		}
