@@ -419,3 +419,16 @@ func TestRemoveRedundant(t *testing.T) {
 		t.Errorf("removeRedundant = %v, want %v (root 0 is an ancestor of both)", got, want)
 	}
 }
+
+func TestLimited(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	d := randomDAG(t, newRNG(77), 200)
+	a, b := d.ids[10], d.ids[len(d.ids)-1]
+	if _, err := MergeBases(ctx, Limited(d.src, 1_000_000), a, b); err != nil {
+		t.Errorf("generous limit: %v", err)
+	}
+	if _, err := MergeBases(ctx, Limited(d.src, 3), a, b); !errors.Is(err, ErrTooExpensive) {
+		t.Errorf("tiny limit: %v", err)
+	}
+}

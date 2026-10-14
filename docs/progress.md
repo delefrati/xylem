@@ -119,6 +119,7 @@ Verified on a fresh `git clone` of 3e549f4: `make tools && make up && make proto
 ## Log
 
 <!-- - YYYY-MM-DD M0.2: skeleton dirs + cobra roots (commit abc1234) -->
+- 2026-10-14 M4.9: IsAncestor and MergeBase RPCs over derived.IsAncestor/MergeBases with a per-call node cap (derived.Limited; Config.MaxAncestryNodes, default 1M → ResourceExhausted); 60 sampled branchy pairs equal git merge-base --all / --is-ancestor
 - 2026-10-14 M4.8: repo.Log (fp walk; mainline segments read with one MainlineRange query; path log = draft segment + PathHistoryMainline + fallback walk) and the Log RPC (cursor tokens: tip, depth, phase, max depth, seq); repo and path logs equal `git log --first-parent [-- path]` on edge and branchy at small page sizes
 - 2026-10-14 M4.7: treeops.Diff (paired tree walk skipping equal subtrees, path filters, entry budget; property-tested vs flat-map reference) and the Diff RPC (first-parent fast path, statuses, optional hunks with context_lines default 3, binary flag, DFS order, 100 files per message); matches git diff --name-status on every edge commit and on commit pairs; hunks re-apply exactly
 - 2026-10-14 M4.6: internal/diff — Lines, IsBinary (NUL in first 8 KiB), Diff (Myers, interned lines), Hunks (unified, N context, git-compatible headers), Apply; property tests: minimal vs DP LCS (3,000 random cases ≤ 50 lines), Apply(Hunks(a,b)) == b for 8,000 cases incl. missing final newlines; 99.1% coverage

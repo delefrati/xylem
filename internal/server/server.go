@@ -16,6 +16,7 @@ import (
 	"google.golang.org/grpc/status"
 
 	xylemv1 "github.com/delefrati/xylem/gen/xylem/v1"
+	"github.com/delefrati/xylem/internal/derived"
 	"github.com/delefrati/xylem/internal/meta"
 	"github.com/delefrati/xylem/internal/repo"
 	"github.com/delefrati/xylem/internal/store"
@@ -47,6 +48,9 @@ type Config struct {
 	// MaxDiffEntries bounds the tree entries one Diff may scan (default
 	// DefaultMaxDiffEntries); beyond it Diff fails with ResourceExhausted.
 	MaxDiffEntries int
+	// MaxAncestryNodes bounds the changesets IsAncestor and MergeBase may
+	// visit (default DefaultMaxAncestryNodes).
+	MaxAncestryNodes int64
 }
 
 // Server implements RepoService, ObjectService and WriteService.
@@ -147,6 +151,10 @@ func toStatus(err error) error {
 		return status.Error(codes.Aborted, err.Error())
 	case errors.Is(err, repo.ErrNotFastForward):
 		return status.Error(codes.FailedPrecondition, err.Error())
+	case errors.Is(err, derived.ErrTooExpensive):
+		return status.Error(codes.ResourceExhausted, err.Error())
+	case errors.Is(err, derived.ErrMissing):
+		return status.Error(codes.NotFound, err.Error())
 	default:
 		return status.Error(codes.Internal, err.Error())
 	}
