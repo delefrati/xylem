@@ -17,6 +17,7 @@ Maintained by the implementing agent. Newest entries first within each section.
 ## Deviations from spec
 
 <!-- - YYYY-MM-DD M2.4: <what changed, why, doc updated: 04-derived-data.md> -->
+- 2026-10-14 M4.10: `derived.Kind` is a {Name, Version} struct (04 sketches an interface with Mode; only lazy kinds use the engine, core stays eager in CreateChangeset). The blame chain matches changes to the exact path (the path log also returns a directory's children). Parity rule added to 10-testing.md: git blame always follows whole-file renames and Xylem does not (04), so lines git attributes to another filename are counted as "renamed", not mismatches — for human review.
 - 2026-10-14 M4.8: Log pages walk at most 100k changesets one by one (draft segments, histories without a mainline ancestor) and then return early with a token; the 10 s per-page timer is not implemented (TODO(M9) limits). The token pins the tip id, so later pages follow the same history if main moves.
 - 2026-10-14 M4.7: the first-parent fast path uses the changeset's decoded change list (same data as changeset_files, already loaded); Diff has no page token in 05, so the 100k scan limit (Config.MaxDiffEntries) returns ResourceExhausted; git's "T" (type change) maps to MODIFIED or MODE_CHANGED; `binary` is computed only when hunks are requested.
 - 2026-10-14 M4.6: diff algorithm choice — linear-space Myers (bisect at the middle of an optimal path), minimal edit scripts, with a per-region cost cap (MaxCost = 16,384 edits → wholesale replacement) instead of a 50k-lines-per-side cap; regions with no common line skip the search. Hunks follow git's merging rule (changes ≤ 2×context apart share a hunk) and "\\ No newline at end of file" markers; verified against `git diff --no-index`.
@@ -111,6 +112,7 @@ Verified on a fresh `git clone` of 3e549f4: `make tools && make up && make proto
 
 <!-- - YYYY-MM-DD: CreateChangeset 10 files on 1k-file tree: p50 X ms, p99 Y ms (M2.9) -->
 
+- 2026-10-14: Blame RPC on branchy files (33 sampled, local, no -race): cold p50 15–46 ms (computes and stores the chain), warm p50 1.8–5.8 ms (target < 50 ms) (M4.10)
 - 2026-10-14: import external small repo spf13/cobra @adbc881 (1,106 commits, 114 merges, 1,861 blobs, 30.6 MB): 1.8 s ≈ 623 commits/s; verify-import --all 0 mismatches (50,483 files); verify 0 violations (M3)
 - 2026-10-14: import branchy via the binary into the dev DB with `fs://./data/objects` on the project drive: 14.4 s ≈ 139 commits/s — the FS store fsyncs every object and that drive is slow to fsync; the same import with the store in /tmp: 3.3 s ≈ 605 commits/s (M3)
 - 2026-10-14: import branchy (2,000 commits, 5,413 blobs, 7.2 MB): 3.4 s ≈ 595 commits/s (local, mem store, 8 workers, no -race) (M3.4)
@@ -119,6 +121,7 @@ Verified on a fresh `git clone` of 3e549f4: `make tools && make up && make proto
 ## Log
 
 <!-- - YYYY-MM-DD M0.2: skeleton dirs + cobra roots (commit abc1234) -->
+- 2026-10-14 M4.10: derived.Engine (inline ≤ 4 KiB or derived object, singleflight, LRU; meta Get/PutDerived), blame value encoding + FreshBlame/NextBlame, repo.Blame (exact-path last modifier, iterative chain back to a stored value or fresh start on delete/symlink change, forward compute storing each), Blame RPC (binary → FailedPrecondition); vs git blame --first-parent: tiny 73/73, edge 374/374 (+19 rename-followed lines skipped), branchy 1,291/1,291
 - 2026-10-14 M4.9: IsAncestor and MergeBase RPCs over derived.IsAncestor/MergeBases with a per-call node cap (derived.Limited; Config.MaxAncestryNodes, default 1M → ResourceExhausted); 60 sampled branchy pairs equal git merge-base --all / --is-ancestor
 - 2026-10-14 M4.8: repo.Log (fp walk; mainline segments read with one MainlineRange query; path log = draft segment + PathHistoryMainline + fallback walk) and the Log RPC (cursor tokens: tip, depth, phase, max depth, seq); repo and path logs equal `git log --first-parent [-- path]` on edge and branchy at small page sizes
 - 2026-10-14 M4.7: treeops.Diff (paired tree walk skipping equal subtrees, path filters, entry budget; property-tested vs flat-map reference) and the Diff RPC (first-parent fast path, statuses, optional hunks with context_lines default 3, binary flag, DFS order, 100 files per message); matches git diff --name-status on every edge commit and on commit pairs; hunks re-apply exactly

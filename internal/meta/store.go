@@ -106,6 +106,14 @@ type GitBlob struct {
 	Size   int64
 }
 
+// DerivedKey identifies a lazily computed derived value (04 §Framework).
+type DerivedKey struct {
+	Kind      string
+	Version   int16
+	Changeset hash.ID
+	Key       []byte
+}
+
 // Store is the metadata store. Implementations are safe for concurrent use.
 type Store interface {
 	CreateRepo(ctx context.Context, name string) (RepoID, error)
@@ -154,6 +162,13 @@ type Store interface {
 	// depth ≤ maxDepth and seq < beforeSeq that changed path or anything below
 	// it (04 §Kind 3). path must be non-empty.
 	PathHistoryMainline(ctx context.Context, repo RepoID, ref string, path []byte, maxDepth, beforeSeq int64, limit int) ([]PathHit, error)
+
+	// GetDerived returns a stored derived value: inline bytes, or the id of a
+	// "derived" object holding it. found is false if none is stored.
+	GetDerived(ctx context.Context, repo RepoID, k DerivedKey) (value []byte, ref hash.ID, found bool, err error)
+	// PutDerived stores a derived value (exactly one of value and a non-zero
+	// ref); an existing value is kept.
+	PutDerived(ctx context.Context, repo RepoID, k DerivedKey, value []byte, ref hash.ID) error
 
 	// GitSHAMap returns git commit sha → changeset id for every imported changeset.
 	GitSHAMap(ctx context.Context, repo RepoID) (map[[20]byte]hash.ID, error)

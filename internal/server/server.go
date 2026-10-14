@@ -151,6 +151,8 @@ func toStatus(err error) error {
 		return status.Error(codes.Aborted, err.Error())
 	case errors.Is(err, repo.ErrNotFastForward):
 		return status.Error(codes.FailedPrecondition, err.Error())
+	case errors.Is(err, repo.ErrBinary):
+		return status.Error(codes.FailedPrecondition, err.Error())
 	case errors.Is(err, derived.ErrTooExpensive):
 		return status.Error(codes.ResourceExhausted, err.Error())
 	case errors.Is(err, derived.ErrMissing):

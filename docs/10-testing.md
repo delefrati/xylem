@@ -89,6 +89,8 @@ Submodule entries (mode 160000) are filtered out of every git-side output (`ls-t
 
 Sampling uses a fixed seed (`--seed`, default 42) so failures are reproducible. The parity report is printed as a table and written as JSON to `parity-report.json`. **The parity suite is the acceptance gate for M3, M4 and M5.**
 
+Blame compares only lines whose git origin is the same path: `git blame` always follows whole-file renames (it cannot be turned off) while Xylem does not (04 §Kind 4), so lines `git blame --line-porcelain` attributes to a different `filename` are counted separately as "renamed", not as mismatches.
+
 Why blame isn't 100% on real repos: Myers implementations can choose different but equally minimal alignments, which shifts attribution on ambiguous lines. Mismatches are listed so a human can review that they're only ambiguous-alignment cases.
 
 ## Benchmarks (`make bench`, informational)

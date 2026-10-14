@@ -23,6 +23,9 @@ var (
 	ErrInvalid  = errors.New("invalid argument")
 	ErrNotFound = errors.New("not found")
 	ErrConflict = errors.New("conflict")
+	// ErrBinary reports a query that needs text, e.g. blame of a binary file
+	// (FailedPrecondition).
+	ErrBinary = errors.New("binary file")
 )
 
 // DefaultMaxBlobSize is the largest blob a changeset may reference (03 §Stored
@@ -34,6 +37,7 @@ type Options struct {
 	MaxBlobSize    uint64 // default DefaultMaxBlobSize
 	TreeCacheSize  int    // decoded trees; default 100k
 	CoreCacheSize  int    // core rows and parent lists; default 1M
+	DerivedCache   int    // lazily derived values (blame); default 100k
 	SizeCheckLimit int    // concurrent blob header reads; default 16
 	Logger         *slog.Logger
 	Now            func() time.Time // default time.Now
@@ -47,6 +51,7 @@ type Repo struct {
 	objs   store.ObjectStore
 	trees  *treeops.Trees
 	source *derived.CachedSource
+	engine *derived.Engine
 	opts   Options
 }
 
@@ -68,6 +73,9 @@ func Open(ctx context.Context, m meta.Store, objs store.ObjectStore, name string
 	if opts.CoreCacheSize == 0 {
 		opts.CoreCacheSize = 1_000_000
 	}
+	if opts.DerivedCache == 0 {
+		opts.DerivedCache = 100_000
+	}
 	if opts.SizeCheckLimit == 0 {
 		opts.SizeCheckLimit = 16
 	}
@@ -84,6 +92,7 @@ func Open(ctx context.Context, m meta.Store, objs store.ObjectStore, name string
 		objs:   objs,
 		trees:  treeops.NewTrees(objs, opts.TreeCacheSize),
 		source: derived.NewCachedSource(m, id, opts.CoreCacheSize),
+		engine: derived.NewEngine(m, id, objs, opts.DerivedCache),
 		opts:   opts,
 	}, nil
 }
