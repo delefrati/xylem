@@ -8,6 +8,7 @@ import (
 	"slices"
 	"strconv"
 
+	"github.com/delefrati/xylem/internal/canon"
 	"github.com/delefrati/xylem/internal/hash"
 	"github.com/delefrati/xylem/internal/paths"
 )
@@ -88,8 +89,7 @@ func EncodeTree(t *Tree) ([]byte, error) {
 	b = binary.AppendUvarint(b, uint64(len(t.Entries)))
 	for _, e := range t.Entries {
 		b = append(b, byte(e.Mode))
-		b = binary.AppendUvarint(b, uint64(len(e.Name)))
-		b = append(b, e.Name...)
+		b = canon.AppendBytes(b, e.Name)
 		b = append(b, e.ID[:]...)
 		if e.Mode != ModeTree {
 			b = binary.AppendUvarint(b, e.Size)
@@ -116,43 +116,53 @@ func checkEntry(e Entry) error {
 // varints, truncation and trailing bytes. Errors wrap ErrCorrupt. Entry names
 // alias body.
 func DecodeTree(body []byte) (*Tree, error) {
-	d := reader{buf: body}
-	count, err := d.uvarint("entry count")
+	r := canon.NewReader(body)
+	count, err := r.Uvarint()
 	if err != nil {
-		return nil, fmt.Errorf("%w: tree: %w", ErrCorrupt, err)
+		return nil, fmt.Errorf("%w: tree entry count: %w", ErrCorrupt, err)
 	}
 	// count is untrusted: don't preallocate more than the bytes can hold.
-	t := &Tree{Entries: make([]Entry, 0, min(count, uint64(len(d.buf)/minEntrySize)))}
+	t := &Tree{Entries: make([]Entry, 0, r.CapHint(count, minEntrySize))}
 	for i := range count {
-		var e Entry
-		mode, err := d.byte("mode")
-		if err != nil {
-			return nil, d.errorf(i, err)
+		e, err := decodeEntry(r)
+		if err == nil {
+			err = checkEntry(e)
 		}
-		e.Mode = Mode(mode)
-		if e.Name, err = d.bytes("name"); err != nil {
-			return nil, d.errorf(i, err)
-		}
-		if e.ID, err = d.id(); err != nil {
-			return nil, d.errorf(i, err)
-		}
-		if e.Mode != ModeTree {
-			if e.Size, err = d.uvarint("size"); err != nil {
-				return nil, d.errorf(i, err)
+		if err == nil {
+			if n := len(t.Entries); n > 0 && bytes.Compare(t.Entries[n-1].Name, e.Name) >= 0 {
+				err = fmt.Errorf("name %q not after %q", e.Name, t.Entries[n-1].Name)
 			}
 		}
-		if err := checkEntry(e); err != nil {
-			return nil, d.errorf(i, err)
-		}
-		if n := len(t.Entries); n > 0 && bytes.Compare(t.Entries[n-1].Name, e.Name) >= 0 {
-			return nil, d.errorf(i, fmt.Errorf("name %q not after %q", e.Name, t.Entries[n-1].Name))
+		if err != nil {
+			return nil, fmt.Errorf("%w: tree entry %d: %w", ErrCorrupt, i, err)
 		}
 		t.Entries = append(t.Entries, e)
 	}
-	if len(d.buf) != 0 {
-		return nil, fmt.Errorf("%w: tree: %d trailing bytes", ErrCorrupt, len(d.buf))
+	if r.Len() != 0 {
+		return nil, fmt.Errorf("%w: tree: %d trailing bytes", ErrCorrupt, r.Len())
 	}
 	return t, nil
+}
+
+func decodeEntry(r *canon.Reader) (Entry, error) {
+	var e Entry
+	mode, err := r.Byte()
+	if err != nil {
+		return e, fmt.Errorf("mode: %w", err)
+	}
+	e.Mode = Mode(mode)
+	if e.Name, err = r.Bytes(); err != nil {
+		return e, fmt.Errorf("name: %w", err)
+	}
+	if e.ID, err = r.ID(); err != nil {
+		return e, fmt.Errorf("id: %w", err)
+	}
+	if e.Mode != ModeTree {
+		if e.Size, err = r.Uvarint(); err != nil {
+			return e, fmt.Errorf("size: %w", err)
+		}
+	}
+	return e, nil
 }
 
 // Lookup returns the entry named name, using binary search.
@@ -164,70 +174,4 @@ func (t *Tree) Lookup(name []byte) (Entry, bool) {
 		return Entry{}, false
 	}
 	return t.Entries[i], true
-}
-
-// reader reads canonical primitive encodings (03 §Primitive encodings).
-type reader struct {
-	buf []byte
-}
-
-func (d *reader) errorf(entry uint64, err error) error {
-	return fmt.Errorf("%w: tree entry %d: %w", ErrCorrupt, entry, err)
-}
-
-func (d *reader) byte(what string) (byte, error) {
-	if len(d.buf) < 1 {
-		return 0, fmt.Errorf("truncated %s", what)
-	}
-	b := d.buf[0]
-	d.buf = d.buf[1:]
-	return b, nil
-}
-
-// uvarint reads a minimally encoded uvarint.
-func (d *reader) uvarint(what string) (uint64, error) {
-	v, n := binary.Uvarint(d.buf)
-	switch {
-	case n == 0:
-		return 0, fmt.Errorf("truncated %s", what)
-	case n < 0:
-		return 0, fmt.Errorf("%s overflows uint64", what)
-	case n != uvarintLen(v):
-		return 0, fmt.Errorf("non-minimal varint for %s", what)
-	}
-	d.buf = d.buf[n:]
-	return v, nil
-}
-
-// bytes reads uvarint(len) ‖ raw bytes. The result aliases the input.
-func (d *reader) bytes(what string) ([]byte, error) {
-	n, err := d.uvarint(what + " length")
-	if err != nil {
-		return nil, err
-	}
-	if n > uint64(len(d.buf)) {
-		return nil, fmt.Errorf("truncated %s: length %d, %d bytes left", what, n, len(d.buf))
-	}
-	b := d.buf[:n:n]
-	d.buf = d.buf[n:]
-	return b, nil
-}
-
-func (d *reader) id() (hash.ID, error) {
-	var id hash.ID
-	if len(d.buf) < hash.Size {
-		return id, errors.New("truncated id")
-	}
-	copy(id[:], d.buf)
-	d.buf = d.buf[hash.Size:]
-	return id, nil
-}
-
-func uvarintLen(v uint64) int {
-	n := 1
-	for v >= 0x80 {
-		v >>= 7
-		n++
-	}
-	return n
 }

@@ -89,6 +89,7 @@ xylem/
 ├── internal/
 │   ├── hash/                  # ObjectID (BLAKE3-256), hex, prefix parsing
 │   ├── paths/                 # path and name validation, split/join, ordering, IsUnder
+│   ├── canon/                 # canonical primitive encodings (minimal varints, bytes, ids) for tree and changeset bodies
 │   ├── object/                # blob and tree canonical encoding, zstd framing
 │   ├── changeset/             # changeset model, canonical encoding, validation
 │   ├── store/                 # ObjectStore interface + fs, s3 and memory implementations
