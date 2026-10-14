@@ -87,10 +87,10 @@ edge() {
 
   at; git commit -q --allow-empty -m "empty commit"
 
-  printf 'caf\xe9 au lait\n\nISO-8859-1 message body\n' > ../msg.txt
+  # The message goes through stdin: never write outside $dir (fixtures are
+  # generated concurrently into sibling directories).
   at; echo "encoded" > enc.txt; git add enc.txt
-  git -c i18n.commitEncoding=ISO-8859-1 commit -q -F ../msg.txt
-  rm ../msg.txt
+  printf 'caf\xe9 au lait\n\nISO-8859-1 message body\n' | git -c i18n.commitEncoding=ISO-8859-1 commit -q -F -
 
   # Submodule entry (gitlink): added, changed, removed. The importer skips it.
   at; git update-index --add --cacheinfo "160000,$(git rev-parse HEAD),vendor/sub"

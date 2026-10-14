@@ -1,6 +1,10 @@
 package testutil_test
 
 import (
+	"fmt"
+	"os/exec"
+	"path/filepath"
+	"sync"
 	"testing"
 
 	"github.com/delefrati/xylem/internal/testutil"
@@ -38,5 +42,32 @@ func TestCopyFixture(t *testing.T) {
 	dir := testutil.CopyFixture(t, "tiny")
 	if gitOut(t, dir, "rev-parse", "main") != gitOut(t, testutil.GitFixture(t, "tiny"), "rev-parse", "main") {
 		t.Error("copy has a different main")
+	}
+}
+
+// Fixture scripts run concurrently into sibling directories (cold caches in
+// CI); they must not share any file outside their own directory.
+func TestFixtureScriptConcurrent(t *testing.T) {
+	t.Parallel()
+	parent := t.TempDir()
+	script := filepath.Join(testutil.RepoRoot(t), "scripts", "make-fixture-repo.sh")
+	var wg sync.WaitGroup
+	outs := make([]string, 4)
+	for i := range outs {
+		wg.Go(func() {
+			dir := filepath.Join(parent, fmt.Sprint("edge-", i))
+			out, err := exec.Command(script, dir, "edge").CombinedOutput() //nolint:gosec // G204: our own fixture script
+			if err != nil {
+				t.Errorf("concurrent edge generation %d: %v\n%s", i, err, out)
+				return
+			}
+			outs[i] = testutil.Git(t, dir, "rev-parse", "main")
+		})
+	}
+	wg.Wait()
+	for _, o := range outs[1:] {
+		if o != outs[0] {
+			t.Errorf("concurrent generations differ: %v", outs)
+		}
 	}
 }
