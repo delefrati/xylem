@@ -86,8 +86,12 @@ parity-external: ## Git parity suite on testdata/external (M4)
 e2e: ## CLI end-to-end tests (M5)
 	@echo "e2e: not yet implemented (M5)"
 
-fixtures: ## Generate synthetic fixture repos (M3)
-	@echo "fixtures: not yet implemented (M3)"
+FIXTURES := testdata/fixtures
+
+fixtures: ## Generate the tiny, edge and branchy fixture repos into testdata/fixtures
+	scripts/make-fixture-repo.sh $(FIXTURES)/tiny tiny
+	scripts/make-fixture-repo.sh $(FIXTURES)/edge edge
+	go run ./scripts/genrepo $(FIXTURES)/branchy
 
 run-server: ## Run bin/xylemd server with dev settings (M4)
 	@echo "run-server: not yet implemented (M4)"

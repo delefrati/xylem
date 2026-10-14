@@ -6,7 +6,7 @@
 
 ## Tasks
 
-- [ ] **M3.1 Fixture generators.** `scripts/make-fixture-repo.sh <dir> tiny|edge` (deterministic dates and identities; every edge case listed in 08), and `scripts/genrepo` (Go program) for `branchy` (~2,000 commits, ~300 files, random feature branches with merges, fixed seed). Add `make fixtures` to generate all three under `testdata/fixtures/`.
+- [x] **M3.1 Fixture generators.** `scripts/make-fixture-repo.sh <dir> tiny|edge` (deterministic dates and identities; every edge case listed in 08), and `scripts/genrepo` (Go program) for `branchy` (~2,000 commits, ~300 files, random feature branches with merges, fixed seed). Add `make fixtures` to generate all three under `testdata/fixtures/`.
 - [ ] **M3.2 `internal/gitsource`.** `RevList(ctx, tip, exclude) iter`; `CatFile` pool (long-lived `git cat-file --batch`, request/response framing, N processes); `ReadCommit(sha)` parsing the raw commit (tree, parents, author/committer with tz, encoding, message bytes); `DiffTree(parent, commit)` parsing `-z --raw` output (statuses A/M/D/T, modes, shas, raw path bytes). Unit tests using the `tiny` and `edge` fixtures (they run `git`, so mark them to skip if `git` is missing).
 - [ ] **M3.3 Mapping layer.** Convert git commit and changes into a `changeset.Changeset` (modes, signatures, extras `git-sha`, `git-encoding`, `git-extra-submodules`), with a warning callback for skipped submodules.
 - [ ] **M3.4 Pipeline.** `internal/importer` with the reader → lister → blob uploaders → ordered committer stages from 08. Use a `git sha → Xylem id` map (preloaded on resume), a blob-sha cache (LRU), `HasObjects`-style batching against the store, and `repo.CreateChangeset` with `AllowRoot`/`AllowEmpty`/explicit committer.
