@@ -26,6 +26,6 @@ func newRootCmd() *cobra.Command {
 		SilenceUsage: true,
 	}
 	root.PersistentFlags().StringVar(&g.logLevel, "log-level", envOr("XYLEM_LOG_LEVEL", "info"), "debug, info, warn or error (env XYLEM_LOG_LEVEL)")
-	root.AddCommand(newVersionCmd(), newMigrateCmd(&g))
+	root.AddCommand(newVersionCmd(), newMigrateCmd(&g), newAdminCmd(&g))
 	return root
 }

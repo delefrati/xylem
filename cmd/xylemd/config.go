@@ -10,7 +10,10 @@ import (
 )
 
 // Defaults from 11-dev-environment.md §Server configuration.
-const defaultDBURL = "postgres://xylem:xylem@localhost:54329/xylem?sslmode=disable" //nolint:gosec // G101: documented dev-only default (11-dev-environment.md)
+const (
+	defaultDBURL    = "postgres://xylem:xylem@localhost:54329/xylem?sslmode=disable" //nolint:gosec // G101: documented dev-only default (11-dev-environment.md)
+	defaultStoreURL = "fs://./data/objects"
+)
 
 // envOr returns the value of the environment variable key, or def if unset.
 func envOr(key, def string) string {
@@ -23,6 +26,11 @@ func envOr(key, def string) string {
 // addDBFlag registers --db with its XYLEM_DB_URL fallback.
 func addDBFlag(cmd *cobra.Command, dst *string) {
 	cmd.Flags().StringVar(dst, "db", envOr("XYLEM_DB_URL", defaultDBURL), "Postgres URL (env XYLEM_DB_URL)")
+}
+
+// addStoreFlag registers --store with its XYLEM_STORE fallback.
+func addStoreFlag(cmd *cobra.Command, dst *string) {
+	cmd.Flags().StringVar(dst, "store", envOr("XYLEM_STORE", defaultStoreURL), "object store URL: fs://dir, s3://bucket?…, mem:// (env XYLEM_STORE)")
 }
 
 // newLogger returns a text logger on stderr for admin commands.

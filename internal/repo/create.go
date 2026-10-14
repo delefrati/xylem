@@ -142,6 +142,11 @@ func (r *Repo) CreateChangeset(ctx context.Context, req CreateRequest, opts Crea
 		}
 		r.trees.Add(nt.ID, nt.Tree)
 	}
+	if root == treeops.EmptyTree {
+		if err := r.ensureEmptyTree(ctx); err != nil {
+			return nil, false, fmt.Errorf("storing the empty tree: %w", err)
+		}
+	}
 
 	// 9. Core derived data.
 	core, err := derived.ComputeCore(ctx, r.source, id, cs.Parents, root)
