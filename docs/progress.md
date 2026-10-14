@@ -122,6 +122,7 @@ Verified on a fresh `git clone` of 3e549f4: `make tools && make up && make proto
 ## Log
 
 <!-- - YYYY-MM-DD M0.2: skeleton dirs + cobra roots (commit abc1234) -->
+- 2026-10-14 M4.12: docs/api-examples.md — grpcurl calls for every read RPC, ObjectService and admin UpdateRef, with real (trimmed) outputs from the dev server on the imported edge fixture, base64 conventions and helpers, error and health examples
 - 2026-10-14 M4.11: internal/parity (9 checks: tree, log, log-path, diff-names, diff-content, blame, merge-base, is-ancestor, read-file; seeded sampling; table + JSON report), `xylemd parity --git --server [--seed --checks --commits --blame-threshold --report]`, `make parity` (TestParity under -tags parity), CI parity job; result: 100% on every check for tiny, edge and branchy (branchy blame 2,133/2,133 lines)
 - 2026-10-14 M4.10: derived.Engine (inline ≤ 4 KiB or derived object, singleflight, LRU; meta Get/PutDerived), blame value encoding + FreshBlame/NextBlame, repo.Blame (exact-path last modifier, iterative chain back to a stored value or fresh start on delete/symlink change, forward compute storing each), Blame RPC (binary → FailedPrecondition); vs git blame --first-parent: tiny 73/73, edge 374/374 (+19 rename-followed lines skipped), branchy 1,291/1,291
 - 2026-10-14 M4.9: IsAncestor and MergeBase RPCs over derived.IsAncestor/MergeBases with a per-call node cap (derived.Limited; Config.MaxAncestryNodes, default 1M → ResourceExhausted); 60 sampled branchy pairs equal git merge-base --all / --is-ancestor
