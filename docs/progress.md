@@ -4,9 +4,9 @@ Maintained by the implementing agent. Newest entries first within each section.
 
 ## Status
 
-- **Current milestone:** M4 — Read API and parity
-- **Last checkpoint approved by human:** M3 — 2026-10-14 (M2, M1, golden vectors and M0 approved 2026-10-14)
-- **Blocked on:** human review of M4 (⛔ end of milestone)
+- **Current milestone:** M5 — Client read path
+- **Last checkpoint approved by human:** M4 — 2026-10-14 (M3, M2, M1, golden vectors and M0 approved 2026-10-14)
+- **Blocked on:** —
 
 ## Open questions (for the human)
 
@@ -53,7 +53,7 @@ Maintained by the implementing agent. Newest entries first within each section.
 
 ### M4 — 2026-10-14
 
-Verified on 9abceb2: `make up && make check && make parity` → exit 0; `bin/xylemd parity --git testdata/fixtures/branchy --server localhost:7400 --repo branchy` (live server on the dev DB) → all checks PASS; `buf breaking --against .git#ref=624301c` (the M0 protos) → no breaking changes (protos unchanged since M0).
+Approved by the human 2026-10-14 (CI green incl. the new parity job). Verified on 9abceb2: `make up && make check && make parity` → exit 0; `bin/xylemd parity --git testdata/fixtures/branchy --server localhost:7400 --repo branchy` (live server on the dev DB) → all checks PASS; `buf breaking --against .git#ref=624301c` (the M0 protos) → no breaking changes (protos unchanged since M0).
 
 | Acceptance criterion | Evidence | Result |
 |---|---|---|
