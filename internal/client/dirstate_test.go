@@ -22,6 +22,7 @@ func TestDirstateRoundTrip(t *testing.T) {
 	d.Set(DirEntry{Path: []byte("a/\xff"), Mode: object.ModeSymlink, Size: 1, MtimeNs: 7, Blob: hash.ID{2}})
 	d.Set(DirEntry{Path: []byte("gone"), Mode: object.ModeFile})
 	d.Delete([]byte("gone"))
+	d.Root = hash.ID{5}
 	if err := d.Save(p); err != nil {
 		t.Fatal(err)
 	}
@@ -29,7 +30,7 @@ func TestDirstateRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got.WrittenAtNs != d.WrittenAtNs || got.Len() != 2 {
+	if got.WrittenAtNs != d.WrittenAtNs || got.Len() != 2 || got.Root != (hash.ID{5}) {
 		t.Fatalf("loaded %d entries, written at %d", got.Len(), got.WrittenAtNs)
 	}
 	es := got.Entries()
@@ -80,7 +81,7 @@ func TestRebuildDirstateAndHashing(t *testing.T) {
 		{Path: []byte("link"), Mode: object.ModeSymlink, ID: object.ID(object.KindBlob, []byte("same.txt")), Size: 8},
 		{Path: []byte("missing.txt"), Mode: object.ModeFile, ID: hash.ID{9}, Size: 1},
 	}
-	d, err := RebuildDirstate(root, files)
+	d, err := RebuildDirstate(root, hash.ID{7}, files)
 	if err != nil {
 		t.Fatal(err)
 	}

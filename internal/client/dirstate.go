@@ -32,9 +32,13 @@ type DirEntry struct {
 	Blob    hash.ID
 }
 
-// Dirstate maps tracked paths to their last known stat and blob.
+// Dirstate maps tracked paths to their last known stat and blob. Root is the
+// root tree it describes: a dirstate whose Root differs from the
+// workspace's state is stale (a crash between saving the two) and must be
+// rebuilt.
 type Dirstate struct {
 	WrittenAtNs int64 // when it was saved: mtimes at or after this are "racy"
+	Root        hash.ID
 	entries     map[string]DirEntry
 }
 
@@ -68,6 +72,7 @@ func (d *Dirstate) Entries() []DirEntry {
 
 type dirstateFile struct {
 	WrittenAtNs int64
+	Root        hash.ID
 	Entries     []DirEntry
 }
 
@@ -88,7 +93,7 @@ func LoadDirstate(path string) (*Dirstate, error) {
 	if err := gob.NewDecoder(bytes.NewReader(b[len(dirstateMagic):])).Decode(&f); err != nil {
 		return nil, fmt.Errorf("%w: %w", ErrNoDirstate, err)
 	}
-	d := &Dirstate{WrittenAtNs: f.WrittenAtNs, entries: make(map[string]DirEntry, len(f.Entries))}
+	d := &Dirstate{WrittenAtNs: f.WrittenAtNs, Root: f.Root, entries: make(map[string]DirEntry, len(f.Entries))}
 	for _, e := range f.Entries {
 		d.entries[string(e.Path)] = e
 	}
@@ -100,7 +105,7 @@ func (d *Dirstate) Save(path string) error {
 	d.WrittenAtNs = time.Now().UnixNano()
 	var buf bytes.Buffer
 	buf.WriteString(dirstateMagic)
-	if err := gob.NewEncoder(&buf).Encode(dirstateFile{WrittenAtNs: d.WrittenAtNs, Entries: d.Entries()}); err != nil {
+	if err := gob.NewEncoder(&buf).Encode(dirstateFile{WrittenAtNs: d.WrittenAtNs, Root: d.Root, Entries: d.Entries()}); err != nil {
 		return err
 	}
 	return WriteFileAtomic(path, buf.Bytes(), 0o644)
@@ -145,8 +150,9 @@ func entryFor(path []byte, info fs.FileInfo, mode object.Mode, blob hash.ID) Dir
 // RebuildDirstate hashes the working files expected by files (the checked
 // out tree in scope). Files that match get their real stat; files that
 // differ or are missing get MtimeNs 0, so status reports them.
-func RebuildDirstate(root string, files []FileEntry) (*Dirstate, error) {
+func RebuildDirstate(root string, tree hash.ID, files []FileEntry) (*Dirstate, error) {
 	d := NewDirstate()
+	d.Root = tree
 	for _, f := range files {
 		abs := filepath.Join(root, string(f.Path))
 		e := DirEntry{Path: f.Path, Mode: f.Mode, Size: sizeInt64(f.Size), Blob: f.ID}

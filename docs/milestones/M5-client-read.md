@@ -11,7 +11,7 @@
 - [x] **M5.3 Local object cache.** Sharded files under `.xylem/objects`, verify on insert, size accounting, LRU eviction by atime, and `xy cache stats|gc`.
 - [x] **M5.4 Fetcher.** Scoped breadth-first tree fetch, then blob fetch, with batching (≤ 1024), 8 concurrent streams, and progress reporting to stderr on a TTY. Sparse scope helper (`InScope(path)`) with tests for prefix and under semantics.
 - [x] **M5.5 Dirstate.** Format per 06 (`XYLDS1` header, gob, written-at timestamp), atomic save, and rebuild-by-hashing when missing.
-- [ ] **M5.6 Checkout engine.** Diff the current and target trees (scoped), dirty check, fetch, apply (atomic writes, modes, symlinks, empty-dir cleanup), update dirstate, write state last. Handle type changes (file ↔ symlink ↔ dir) by removing before writing.
+- [x] **M5.6 Checkout engine.** Diff the current and target trees (scoped), dirty check, fetch, apply (atomic writes, modes, symlinks, empty-dir cleanup), update dirstate, write state last. Handle type changes (file ↔ symlink ↔ dir) by removing before writing.
 - [ ] **M5.7 `xy clone`.** Full and `--sparse`. Fails if the target dir exists and isn't empty.
 - [ ] **M5.8 Status and local diff.** Walk with `.gitignore` (go-git matcher, nested files), racy-mtime rule, parallel hashing, `A`/`M`/`D`/`?`, and paths relative to the cwd. `xy diff` uses `internal/diff` on the base blob (from the cache, fetched if missing) vs the working file.
 - [ ] **M5.9 Query commands.** `log`, `show`, `blame`, `cat`, `ls`, all thin wrappers over RPCs with human and `--json` output. `@` resolves client-side.
