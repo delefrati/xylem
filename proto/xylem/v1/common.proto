@@ -1,0 +1,47 @@
+syntax = "proto3";
+package xylem.v1;
+option go_package = "github.com/delefrati/xylem/gen/xylem/v1;xylemv1";
+
+import "google/protobuf/timestamp.proto";
+
+enum FileMode {
+  FILE_MODE_UNSPECIFIED = 0;
+  FILE_MODE_FILE = 1;
+  FILE_MODE_EXEC = 2;
+  FILE_MODE_SYMLINK = 3;
+  FILE_MODE_TREE = 4;
+}
+
+message Signature {
+  bytes name_email = 1;                        // "Name <email>"; bytes because git allows non-UTF-8
+  google.protobuf.Timestamp time = 2;          // only seconds are significant; nanos must be 0
+  sint32 tz_offset_minutes = 3;
+}
+
+message FileChange {
+  bytes path = 1;
+  enum Op { OP_UNSPECIFIED = 0; OP_PUT = 1; OP_DELETE = 2; }
+  Op op = 2;
+  FileMode mode = 3;                           // PUT only
+  uint64 size = 4;                             // PUT only
+  bytes blob_id = 5;                           // PUT only
+}
+
+message Changeset {
+  bytes id = 1;
+  uint64 seq = 2;
+  repeated bytes parents = 3;
+  Signature author = 4;
+  Signature committer = 5;
+  bytes message = 6;                           // raw bytes (may be non-UTF-8 for imported history)
+  map<string, bytes> extras = 7;
+  bytes root_tree = 8;                         // from core_derived
+  uint64 generation = 9;
+  uint64 first_parent_depth = 10;
+  bool on_mainline = 11;
+  string git_sha = 12;                         // hex, empty if native
+  uint32 change_count = 13;
+  repeated FileChange changes = 14;            // only when requested
+}
+
+message PageRequest { uint32 page_size = 1; string page_token = 2; }

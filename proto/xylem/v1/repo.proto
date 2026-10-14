@@ -1,0 +1,115 @@
+syntax = "proto3";
+package xylem.v1;
+option go_package = "github.com/delefrati/xylem/gen/xylem/v1;xylemv1";
+
+import "xylem/v1/common.proto";
+
+service RepoService {
+  rpc ResolveRevision(ResolveRevisionRequest) returns (ResolveRevisionResponse);
+  rpc GetChangesets(GetChangesetsRequest) returns (GetChangesetsResponse);
+  rpc ListRefs(ListRefsRequest) returns (ListRefsResponse);
+  rpc UpdateRef(UpdateRefRequest) returns (UpdateRefResponse);          // admin; land uses WriteService
+
+  rpc Log(LogRequest) returns (LogResponse);
+  rpc ListDirectory(ListDirectoryRequest) returns (ListDirectoryResponse);
+  rpc ReadFile(ReadFileRequest) returns (stream ReadFileResponse);
+  rpc Diff(DiffRequest) returns (stream DiffResponse);
+  rpc Blame(BlameRequest) returns (BlameResponse);
+
+  rpc IsAncestor(IsAncestorRequest) returns (IsAncestorResponse);
+  rpc MergeBase(MergeBaseRequest) returns (MergeBaseResponse);
+}
+
+message ResolveRevisionRequest { string repo = 1; string revision = 2; }
+message ResolveRevisionResponse { bytes id = 1; bytes root_tree = 2; }
+
+message GetChangesetsRequest {
+  string repo = 1;
+  repeated bytes ids = 2;                      // max 1000
+  bool include_changes = 3;
+}
+message GetChangesetsResponse { repeated Changeset changesets = 1; }
+
+message Ref { string name = 1; bytes id = 2; uint64 version = 3; }
+message ListRefsRequest { string repo = 1; string prefix = 2; }
+message ListRefsResponse { repeated Ref refs = 1; }
+
+message UpdateRefRequest {
+  string repo = 1;
+  string name = 2;
+  bytes expected_id = 3;                       // empty = must not exist
+  bytes new_id = 4;
+  bool force = 5;                              // allow non-fast-forward (admin)
+}
+message UpdateRefResponse { Ref ref = 1; }
+
+message LogRequest {
+  string repo = 1;
+  string revision = 2;                         // default "main"
+  bytes path = 3;                              // empty = whole repo
+  PageRequest page = 4;
+}
+message LogResponse { repeated Changeset changesets = 1; string next_page_token = 2; }
+
+message DirEntry { bytes name = 1; FileMode mode = 2; bytes id = 3; uint64 size = 4; }
+message ListDirectoryRequest {
+  string repo = 1;
+  string revision = 2;
+  bytes path = 3;                              // empty = root
+  bool recursive = 4;                          // recursive returns full paths in name
+  PageRequest page = 5;
+}
+message ListDirectoryResponse {
+  bytes tree_id = 1;
+  repeated DirEntry entries = 2;
+  string next_page_token = 3;
+}
+
+message ReadFileRequest { string repo = 1; string revision = 2; bytes path = 3; }
+message ReadFileResponse {
+  FileMode mode = 1;                           // first message only
+  uint64 size = 2;                             // first message only
+  bytes blob_id = 3;                           // first message only
+  bytes chunk = 4;                             // ≤ 1 MiB per message
+}
+
+message DiffRequest {
+  string repo = 1;
+  string from_revision = 2;                    // empty = first parent of to_revision
+  string to_revision = 3;
+  repeated bytes paths = 4;                    // optional prefix filter
+  bool include_hunks = 5;
+  uint32 context_lines = 6;                    // default 3
+}
+message DiffHunk {
+  uint32 old_start = 1; uint32 old_lines = 2;
+  uint32 new_start = 3; uint32 new_lines = 4;
+  bytes body = 5;                              // unified diff lines with ' ', '-', '+' prefixes
+}
+message FileDiff {
+  bytes path = 1;
+  enum Status { STATUS_UNSPECIFIED = 0; STATUS_ADDED = 1; STATUS_DELETED = 2; STATUS_MODIFIED = 3; STATUS_MODE_CHANGED = 4; }
+  Status status = 2;
+  FileMode old_mode = 3; FileMode new_mode = 4;
+  bytes old_blob = 5; bytes new_blob = 6;
+  bool binary = 7;
+  repeated DiffHunk hunks = 8;
+}
+message DiffResponse { repeated FileDiff files = 1; }
+
+message BlameRequest { string repo = 1; string revision = 2; bytes path = 3; }
+message BlameLine {
+  bytes origin = 1;                            // changeset id
+  uint32 origin_line = 2;                      // 1-based
+  bytes content = 3;                           // line without "\n"
+}
+message BlameResponse {
+  repeated BlameLine lines = 1;
+  repeated Changeset origins = 2;              // metadata for distinct origins (no changes)
+}
+
+message IsAncestorRequest { string repo = 1; string ancestor = 2; string descendant = 3; }
+message IsAncestorResponse { bool result = 1; }
+
+message MergeBaseRequest { string repo = 1; string a = 2; string b = 3; }
+message MergeBaseResponse { repeated bytes ids = 1; }

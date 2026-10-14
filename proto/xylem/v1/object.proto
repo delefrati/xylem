@@ -1,0 +1,29 @@
+syntax = "proto3";
+package xylem.v1;
+option go_package = "github.com/delefrati/xylem/gen/xylem/v1;xylemv1";
+
+// Implemented identically by server, cache and daemon tiers.
+service ObjectService {
+  // Streams objects in stored format (zstd frame of header+body), in any order.
+  rpc GetObjects(GetObjectsRequest) returns (stream GetObjectsResponse);
+  rpc HasObjects(HasObjectsRequest) returns (HasObjectsResponse);
+  // Server tier only; cache and daemon tiers return Unimplemented.
+  rpc PutObjects(stream PutObjectsRequest) returns (PutObjectsResponse);
+}
+
+message StoredObject {
+  bytes id = 1;
+  bytes data = 2;                              // zstd frame; receiver verifies the hash
+}
+
+message GetObjectsRequest { string repo = 1; repeated bytes ids = 2; }
+message GetObjectsResponse {
+  repeated StoredObject objects = 1;           // packed up to ~1 MiB per message; a larger object goes alone
+  repeated bytes missing = 2;                  // ids not found (sent in the final message)
+}
+
+message HasObjectsRequest { string repo = 1; repeated bytes ids = 2; }
+message HasObjectsResponse { repeated bool present = 1; }   // same order as request
+
+message PutObjectsRequest { string repo = 1; repeated StoredObject objects = 2; }
+message PutObjectsResponse { uint32 stored = 1; uint32 already_present = 2; }

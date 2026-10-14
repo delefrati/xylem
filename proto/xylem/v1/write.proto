@@ -1,0 +1,63 @@
+syntax = "proto3";
+package xylem.v1;
+option go_package = "github.com/delefrati/xylem/gen/xylem/v1;xylemv1";
+
+import "xylem/v1/common.proto";
+
+service WriteService {
+  rpc CreateChangeset(CreateChangesetRequest) returns (CreateChangesetResponse);
+  rpc Rebase(RebaseRequest) returns (RebaseResponse);
+  rpc Land(LandRequest) returns (LandResponse);
+}
+
+message CreateChangesetRequest {
+  string repo = 1;
+  repeated bytes parents = 2;
+  Signature author = 3;                        // server fills committer
+  bytes message = 4;
+  map<string, bytes> extras = 5;
+  repeated FileChange changes = 6;             // any order; server canonicalizes
+}
+message CreateChangesetResponse { Changeset changeset = 1; bool already_existed = 2; }
+
+message Conflict {
+  bytes path = 1;
+  enum Kind {
+    KIND_UNSPECIFIED = 0;
+    KIND_CONTENT = 1;                               // both sides changed the file differently
+    KIND_DELETE_MODIFY = 2;
+    KIND_ADD_ADD = 3;
+    KIND_FILE_DIRECTORY = 4;
+    KIND_MODE = 5;
+  }
+  Kind kind = 2;
+  bytes base_blob = 3; bytes ours_blob = 4; bytes theirs_blob = 5;   // ours = onto side
+  uint32 region_count = 6;                     // conflicting line regions (M7); 0 = whole-file conflict
+}
+
+message RebaseRequest {
+  string repo = 1;
+  repeated bytes stack = 2;                    // bottom → top; each's first parent is the previous one
+  string onto = 3;                             // revision
+}
+message RebaseResponse {
+  repeated bytes rebased = 1;                  // rebased versions of the non-skipped entries, stack order; empty on conflict
+  repeated Conflict conflicts = 2;
+  bytes conflicting_changeset = 3;             // the stack entry that conflicted
+  repeated bytes skipped = 4;                  // original ids whose changes were all already present on onto
+}
+
+message LandRequest {
+  string repo = 1;
+  repeated bytes stack = 2;                    // bottom → top
+  string target_ref = 3;                       // default "main"
+  uint32 max_attempts = 4;                     // default 10
+}
+message LandResponse {
+  repeated bytes landed = 1;                   // ids now on target (rebased versions)
+  bytes new_tip = 2;
+  repeated Conflict conflicts = 3;             // non-empty means nothing landed
+  bytes conflicting_changeset = 4;
+  uint32 attempts = 5;
+  repeated bytes skipped = 6;                  // original ids that turned out to be no-ops (already on target)
+}
