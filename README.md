@@ -46,9 +46,18 @@ This repository starts as a **plan**: specs, milestones and agent instructions. 
 | [12 Decisions](docs/12-decisions.md) | ADRs |
 | [13 Future](docs/13-future.md) | Post-MVP |
 
-## Getting started (filled in by M0/M6)
+## Getting started
+
+Needs Go (see `go.mod`), Docker with Compose v2, and git. See [11 Dev environment](docs/11-dev-environment.md).
 
 ```bash
-make tools && make up && make build
-# M6+: make demo
+make tools        # pinned buf, golangci-lint, grpcurl and protoc plugins into ./bin (once)
+make up           # postgres on :54329, MinIO on :59000 with the xylem-objects bucket
+make proto        # regenerate gen/ after editing proto/ (generated code is committed)
+make check        # lint + unit and integration tests with -race + build
+bin/xy version
+bin/xylemd version
+make down         # stop services (data volumes are kept)
 ```
+
+`make help` lists every target. The full demo (`make demo`) arrives with M6.

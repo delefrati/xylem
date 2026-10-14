@@ -13,7 +13,7 @@
 - [x] **M0.5 Lint and hygiene.** Add `.golangci.yml` (baseline in 11), `.gitignore`, `.editorconfig`, and a `LICENSE` placeholder (ask the human which license; default MIT if unanswered).
 - [x] **M0.6 Protobuf.** Add `buf.yaml` **v2** with `modules: [{path: proto}]` so imports like `xylem/v1/common.proto` resolve (lint `STANDARD`, breaking `FILE`) and `buf.gen.yaml` (protoc-gen-go plus protoc-gen-go-grpc, `paths=source_relative`, out `gen`). Copy the four proto files from `05-api.md` into `proto/xylem/v1/`. `make proto` generates `gen/xylem/v1/*.pb.go`. Commit the generated code.
 - [x] **M0.7 CI.** Add `.github/workflows/ci.yml` with jobs lint, unit, integration (postgres:17 as a service container; MinIO started in a `docker run -d … minio/minio server /data` **step** because service containers can't pass a command, followed by an `mc mb` step; integration tests may be empty for now), build, and a proto-freshness check.
-- [ ] **M0.8 Smoke test.** Add `cmd/xylemd/main_test.go` that runs the `version` command, and a README "Getting started" section with the exact commands.
+- [x] **M0.8 Smoke test.** Add `cmd/xylemd/main_test.go` that runs the `version` command, and a README "Getting started" section with the exact commands.
 
 ## Acceptance criteria
 

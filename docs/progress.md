@@ -36,6 +36,7 @@ Maintained by the implementing agent. Newest entries first within each section.
 ## Log
 
 <!-- - YYYY-MM-DD M0.2: skeleton dirs + cobra roots (commit abc1234) -->
+- 2026-10-14 M0.8: cmd/xylemd/main_test.go (version output, link-time and fallback; rejects args), README Getting started
 - 2026-10-14 M0.7: .github/workflows/ci.yml — lint, unit, integration (postgres service + MinIO step + mc mb step), build, proto freshness; actionlint clean, MinIO steps simulated locally; not yet pushed
 - 2026-10-14 M0.6: buf.yaml v2 (STANDARD/FILE) + buf.gen.yaml (local plugins); 4 protos copied verbatim from 05-api.md; gen/xylem/v1 committed; `make check` green
 - 2026-10-14 M0.5: .golangci.yml (v2; 8 linters, gofumpt+goimports, gen/ excluded — verified with a probe), .gitignore, .editorconfig, MIT LICENSE
