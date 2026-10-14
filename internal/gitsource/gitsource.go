@@ -181,3 +181,25 @@ func (r *Repo) FirstParentChain(ctx context.Context, tip SHA) (map[SHA]bool, err
 	}
 	return chain, nil
 }
+
+// Git runs an arbitrary git command in the repository and returns its
+// standard output (stderr is included in errors). The parity suite uses it
+// for git's own log, diff, blame and merge-base.
+func (r *Repo) Git(ctx context.Context, args ...string) ([]byte, error) {
+	return r.output(ctx, args...)
+}
+
+// GitStatus runs git and returns its standard output and exit code; a
+// non-zero exit is not an error (e.g. `merge-base --is-ancestor` answers with it).
+func (r *Repo) GitStatus(ctx context.Context, args ...string) ([]byte, int, error) {
+	cmd := r.command(ctx, args...)
+	out, err := cmd.Output()
+	var exit *exec.ExitError
+	if errors.As(err, &exit) {
+		return out, exit.ExitCode(), nil
+	}
+	if err != nil {
+		return nil, 0, fmt.Errorf("git %s: %w", args[0], err)
+	}
+	return out, 0, nil
+}

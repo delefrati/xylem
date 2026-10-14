@@ -16,7 +16,7 @@
 - [x] **M4.8 Log RPC.** Repo log (fp chain walk with pagination by fp_depth) and path log (draft segment + mainline query + fallback, per 04). The page token encodes `(seq cursor, fp_depth cursor)`.
 - [x] **M4.9 Ancestry RPCs.** `IsAncestor`, `MergeBase` wired to the M2 functions, with a cost limit (visited-node cap → `ResourceExhausted`).
 - [x] **M4.10 Derived engine + blame.** `derived.Engine` (inline vs `value_ref` storage, singleflight, LRU), the `blame` kind (encoding and iterative algorithm from 04), and the `Blame` RPC (resolve the last modifier, load blame, join lines with content, attach origin metadata).
-- [ ] **M4.11 Parity suite.** `internal/parity` implementing every check row from 10 *except* Clone (M5), plus `xylemd parity --git <dir> --server <addr> [--seed] [--checks …]` writing `parity-report.json`. `make parity` = fixtures → import each → start an in-process server → run all checks. Add parity tests under `-tags parity`.
+- [x] **M4.11 Parity suite.** `internal/parity` implementing every check row from 10 *except* Clone (M5), plus `xylemd parity --git <dir> --server <addr> [--seed] [--checks …]` writing `parity-report.json`. `make parity` = fixtures → import each → start an in-process server → run all checks. Add parity tests under `-tags parity`.
 - [ ] **M4.12 grpcurl docs.** Add a `docs/api-examples.md` with working `grpcurl` invocations for each RPC against the demo repo.
 
 ## Acceptance criteria

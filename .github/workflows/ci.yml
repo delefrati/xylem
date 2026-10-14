@@ -80,6 +80,28 @@ jobs:
             "mc alias set local http://localhost:59000 xylem xylemxylem && mc mb -p local/xylem-objects"
       - run: make test-integration GOTESTFLAGS=-race
 
+  parity:
+    name: parity (synthetic fixtures)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17.11
+        env:
+          POSTGRES_USER: xylem
+          POSTGRES_PASSWORD: xylem
+          POSTGRES_DB: xylem
+        ports: ["54329:5432"]
+        options: >-
+          --health-cmd "pg_isready -U xylem"
+          --health-interval 2s
+          --health-retries 30
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+      - run: make parity
+
   build:
     runs-on: ubuntu-latest
     steps:

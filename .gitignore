@@ -3,4 +3,5 @@ data/
 testdata/fixtures/
 testdata/external/
 parity-report.json
+parity-report-*.json
 .xylem/

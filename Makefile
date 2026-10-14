@@ -77,8 +77,8 @@ bench: ## Go benchmarks; integration ones too when services are up
 ## ---- later milestones
 
 .PHONY: parity parity-external e2e fixtures run-server demo
-parity: ## Git parity suite on fixtures (M4)
-	@echo "parity: not yet implemented (M4)"
+parity: ## Git parity suite: import each fixture, serve it in process, compare every check with git
+	go test -tags parity -count=1 -timeout 20m -v -run TestParity ./internal/parity/...
 
 parity-external: ## Git parity suite on testdata/external (M4)
 	@echo "parity-external: not yet implemented (M4)"
