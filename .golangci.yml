@@ -1,0 +1,40 @@
+version: "2"
+
+run:
+  build-tags: [integration, e2e, parity]
+
+linters:
+  enable:
+    - govet
+    - staticcheck
+    - errcheck
+    - ineffassign
+    - unused
+    - gosec
+    - errorlint
+    - revive
+  settings:
+    gosec:
+      excludes:
+        - G304 # file paths come from CLI arguments by design
+    revive:
+      rules:
+        - name: exported
+          disabled: true
+  exclusions:
+    generated: strict
+    paths:
+      - ^gen/
+
+formatters:
+  enable:
+    - gofumpt
+    - goimports
+  settings:
+    goimports:
+      local-prefixes:
+        - github.com/delefrati/xylem
+  exclusions:
+    generated: strict
+    paths:
+      - ^gen/

@@ -1,0 +1,6 @@
+bin/
+data/
+testdata/fixtures/
+testdata/external/
+parity-report.json
+.xylem/
