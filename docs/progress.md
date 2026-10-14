@@ -6,7 +6,7 @@ Maintained by the implementing agent. Newest entries first within each section.
 
 - **Current milestone:** M2 — Metadata and commit engine
 - **Last checkpoint approved by human:** M1 — 2026-10-14 (golden vectors approved 2026-10-14; M0 approved 2026-10-14)
-- **Blocked on:** —
+- **Blocked on:** human review of M2 (⛔ end of milestone)
 
 ## Open questions (for the human)
 
@@ -35,6 +35,19 @@ Maintained by the implementing agent. Newest entries first within each section.
 - 2026-10-14 M0.2: client CLI lives in `cmd/xy` (M0.2, binary name), not `cmd/xylem` as the layout tree said; doc updated: 02-architecture.md
 
 ## Milestone results
+
+### M2 — 2026-10-14
+
+Verified on 0022fcf: `make up && make check` → exit 0 (all packages pass under `-race`, including the 1,000-changeset race variant of TestStress); `go test -tags integration -run TestStress ./internal/repo/... -v` → PASS.
+
+| Acceptance criterion | Evidence | Result |
+|---|---|---|
+| All unit and integration tests pass under `-race` | `make check` green: 13 packages, 0 lint issues | ✅ |
+| Stress test passes, `verify` reports zero violations | 10,000 changesets (5.4% merges, 1,155 fast-forwards, ~1,000 files), `Verify{Objects}` → 0 violations in 3.4 s | ✅ |
+| `CreateChangeset`, 10-file change on a 1,000-file tree: p50 < 30 ms (report it) | p50 1.96–2.1 ms, p99 2.3–2.6 ms (no -race, local Postgres, mem store; 13.7 ms p50 under -race) | ✅ |
+| 10 concurrent identical `CreateChangeset` → one row, nine `already_existed`, no error | `TestCreateIdempotentAndConcurrent` (same id and seq for all ten) | ✅ |
+
+**Summary:** changesets are created in-process with incremental trees (property-tested against from-scratch builds), eager core derived data (property-tested against naive ancestry and merge-base on random DAGs), Postgres metadata in one transaction, and refs whose mainline is maintained in the CAS transaction. `xylemd migrate`, `admin init-repo`, `admin set-ref` and `verify` work end to end; verify detects 13 kinds of tampering. Deviations worth a look: no standalone `MainlineRewind` (rewinds go through `CASRef`), timestamp columns clamped to years 1–9999 (body exact), `meta.GetParents` and batch listing methods added, only `main` keeps a mainline, and TestStress runs 1,000 changesets under `-race`.
 
 ### M1 — 2026-10-14
 
@@ -72,7 +85,7 @@ Verified on a fresh `git clone` of 3e549f4: `make tools && make up && make proto
 
 <!-- - YYYY-MM-DD: CreateChangeset 10 files on 1k-file tree: p50 X ms, p99 Y ms (M2.9) -->
 
-- 2026-10-14: stress 10,000 changesets on a ~1,000-file tree (5.4% merges, 1,155 fast-forwards): created in 15.6 s (1.56 ms/changeset), verify --all --objects in 3.4 s, 0 violations (M2.9)
+- 2026-10-14: stress 10,000 changesets on a ~1,000-file tree (5.4% merges, 1,155 fast-forwards): created in 15.6–21.3 s (1.6–2.1 ms/changeset over 4 runs; one outlier run right after `make check` took 60.6 s / 6.1 ms), verify --all --objects in 3.4 s, 0 violations (M2.9)
 - 2026-10-14: CreateChangeset 10 files on 1k-file tree: p50 2.0 ms, p99 2.6 ms (local Postgres, mem store, no -race; 13.7 ms p50 under -race) (M2.6)
 ## Log
 
