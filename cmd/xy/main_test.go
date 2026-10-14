@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/delefrati/xylem/internal/client"
+	"github.com/delefrati/xylem/internal/object"
 )
 
 func runXY(args ...string) (string, error) {
@@ -55,4 +56,31 @@ func TestDialRejectsUnixUntilM8(t *testing.T) {
 		t.Fatal(err)
 	}
 	_ = c.Close()
+}
+
+func TestCacheCommands(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	w, err := client.Init(dir, client.Config{Server: "localhost:7400", CacheMaxBytes: 1 << 20})
+	if err != nil {
+		t.Fatal(err)
+	}
+	c := client.NewObjectCache(w.Meta("objects"), 0)
+	for i := range 3 {
+		id, stored := object.Encode(object.KindBlob, []byte{byte(i)})
+		if err := c.Put(id, stored); err != nil {
+			t.Fatal(err)
+		}
+	}
+	out, err := runXY("-C", dir, "cache", "stats")
+	if err != nil || !strings.HasPrefix(out, "3 objects") {
+		t.Errorf("stats: %q, %v", out, err)
+	}
+	out, err = runXY("-C", dir, "cache", "gc", "--target", "0", "--json")
+	if err != nil || !strings.Contains(out, `"removed": 3`) {
+		t.Errorf("gc: %q, %v", out, err)
+	}
+	if _, err := runXY("-C", t.TempDir(), "cache", "stats"); err == nil {
+		t.Error("cache stats outside a workspace succeeded")
+	}
 }

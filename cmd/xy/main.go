@@ -105,7 +105,6 @@ func newCheckoutCmd(*globals) *cobra.Command {
 }
 
 func newSparseCmd(*globals) *cobra.Command { return m5("sparse", "List or change the sparse profile") }
-func newCacheCmd(*globals) *cobra.Command  { return m5("cache", "Local object cache stats and gc") }
 func newLogCmd(*globals) *cobra.Command    { return m5("log [path]", "First-parent history") }
 func newShowCmd(*globals) *cobra.Command   { return m5("show [rev]", "Changeset metadata and diff") }
 
