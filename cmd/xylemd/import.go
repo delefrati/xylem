@@ -56,6 +56,12 @@ func newImportCmd(g *globalFlags) *cobra.Command {
 			opts := importer.Options{Branch: branch, Batch: batch, Limit: limit, Workers: workers, Logger: log}
 			for {
 				stats, err := importOnce(ctx, r, src, opts, log)
+				if err != nil && follow > 0 && ctx.Err() != nil && errors.Is(err, context.Canceled) {
+					// Interrupting is how --follow stops; the importer checkpointed
+					// what it committed, so the next run resumes from there.
+					log.Info("import interrupted; progress saved")
+					return nil
+				}
 				if err != nil {
 					return err
 				}
