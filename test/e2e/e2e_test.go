@@ -57,9 +57,15 @@ func xyBinary(t *testing.T) string {
 // xy runs the binary in dir and returns stdout and the exit code.
 func xy(t *testing.T, dir string, args ...string) (string, int) {
 	t.Helper()
+	return xyEnv(t, dir, nil, args...)
+}
+
+// xyEnv is xy with extra environment variables.
+func xyEnv(t *testing.T, dir string, env []string, args ...string) (string, int) {
+	t.Helper()
 	cmd := exec.Command(xyBinary(t), args...) //nolint:gosec // G204: the test drives its own binary
 	cmd.Dir = dir
-	cmd.Env = append(os.Environ(), "XYLEM_AUTHOR=E2E Test <e2e@example.com>")
+	cmd.Env = append(append(os.Environ(), "XYLEM_AUTHOR=E2E Test <e2e@example.com>", "XYLEM_TOKEN="), env...)
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout, cmd.Stderr = &stdout, &stderr
 	err := cmd.Run()

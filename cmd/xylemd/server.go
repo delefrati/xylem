@@ -14,6 +14,7 @@ import (
 	"github.com/spf13/cobra"
 	"google.golang.org/grpc"
 
+	"github.com/delefrati/xylem/internal/auth"
 	"github.com/delefrati/xylem/internal/hash"
 	"github.com/delefrati/xylem/internal/repo"
 	"github.com/delefrati/xylem/internal/server"
@@ -26,6 +27,7 @@ const drainTimeout = 10 * time.Second
 func newServerCmd(g *globalFlags) *cobra.Command {
 	var (
 		dbURL, storeURL, listen, httpListen string
+		authTokens                          string
 		objectCacheBytes, mergeMaxBytes     int64
 	)
 	cmd := &cobra.Command{
@@ -38,13 +40,17 @@ func newServerCmd(g *globalFlags) *cobra.Command {
 			if err != nil {
 				return err
 			}
+			tokens, err := loadTokens(authTokens, log)
+			if err != nil {
+				return err
+			}
 			d, err := openDeps(ctx, dbURL, storeURL)
 			if err != nil {
 				return err
 			}
 			defer d.Close()
 			srv := server.New(server.Config{
-				Meta: d.meta, Objects: d.objs, Logger: log, ObjectCacheBytes: objectCacheBytes,
+				Meta: d.meta, Objects: d.objs, Logger: log, ObjectCacheBytes: objectCacheBytes, Auth: tokens,
 				RepoOptions: repo.Options{MergeMaxBytes: mergeMaxBytes},
 				Ready: func(ctx context.Context) error {
 					if err := d.meta.Ping(ctx); err != nil {
@@ -65,8 +71,23 @@ func newServerCmd(g *globalFlags) *cobra.Command {
 	cmd.Flags().StringVar(&httpListen, "http-listen", envOr("XYLEM_HTTP_LISTEN", ":7401"), "HTTP address for /healthz, /readyz, /metrics (env XYLEM_HTTP_LISTEN)")
 	cmd.Flags().Int64Var(&mergeMaxBytes, "merge-max-bytes", envInt64("XYLEM_MERGE_MAX_BYTES", repo.DefaultMergeMaxBytes),
 		"largest file side rebase merges line by line; larger ones conflict as a whole (env XYLEM_MERGE_MAX_BYTES)")
+	addAuthTokensFlag(cmd, &authTokens)
 	cmd.Flags().Int64Var(&objectCacheBytes, "object-cache-bytes", envInt64("XYLEM_OBJECT_CACHE_BYTES", 1<<30), "in-memory object cache size (env XYLEM_OBJECT_CACHE_BYTES)")
 	return cmd
+}
+
+func addAuthTokensFlag(cmd *cobra.Command, path *string) {
+	cmd.Flags().StringVar(path, "auth-tokens", envOr("XYLEM_AUTH_TOKENS", ""),
+		"tokens file (TOML: token → identity and roles); empty allows every call (env XYLEM_AUTH_TOKENS)")
+}
+
+// loadTokens reads the tokens file, or returns nil (auth off) for "".
+func loadTokens(path string, log *slog.Logger) (*auth.Tokens, error) {
+	if path == "" {
+		log.Warn("authentication is off: every call is allowed (set --auth-tokens)")
+		return nil, nil
+	}
+	return auth.LoadTokens(path)
 }
 
 // serve runs the gRPC server (on network "tcp" or "unix") and the HTTP

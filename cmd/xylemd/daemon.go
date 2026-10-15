@@ -75,12 +75,12 @@ func newDaemonCmd(g *globalFlags) *cobra.Command {
 			if direct {
 				upKind = cache.KindServer
 			}
-			up, err := dialUpstream(ctx, f.upstream, upKind)
+			up, err := dialUpstream(ctx, f.upstream, upKind, f.upstreamToken())
 			if err != nil {
 				return err
 			}
 			defer func() { _ = up.Close() }()
-			srv, err := dialUpstream(ctx, serverAddr, cache.KindServer)
+			srv, err := dialUpstream(ctx, serverAddr, cache.KindServer, f.upstreamToken())
 			if err != nil {
 				return fmt.Errorf("--server: %w", err)
 			}
@@ -94,8 +94,11 @@ func newDaemonCmd(g *globalFlags) *cobra.Command {
 			if err := prepareSocket(socket); err != nil {
 				return err
 			}
-			svc := cache.NewService(tier, cache.KindDaemon, log)
-			return serve(ctx, svc.NewGRPCServer(cache.Proxy(srv)...), tierHTTP(metrics, up, srv), "unix", socket, f.httpListen, log)
+			g, err := f.grpcServer(cache.NewService(tier, cache.KindDaemon, log), log, cache.Proxy(srv)...)
+			if err != nil {
+				return err
+			}
+			return serve(ctx, g, tierHTTP(metrics, up, srv), "unix", socket, f.httpListen, log)
 		},
 	}
 	cmd.Flags().StringVar(&socket, "socket", envOr("XYLEM_SOCKET", defaultSocket()), "Unix socket to listen on (env XYLEM_SOCKET)")

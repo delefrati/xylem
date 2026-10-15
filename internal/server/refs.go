@@ -4,6 +4,7 @@ import (
 	"context"
 
 	xylemv1 "github.com/delefrati/xylem/gen/xylem/v1"
+	"github.com/delefrati/xylem/internal/auth"
 	"github.com/delefrati/xylem/internal/hash"
 	"github.com/delefrati/xylem/internal/repo"
 	"github.com/delefrati/xylem/internal/revision"
@@ -115,8 +116,11 @@ func (s *Server) UpdateRef(ctx context.Context, req *xylemv1.UpdateRefRequest) (
 	return &xylemv1.UpdateRefResponse{Ref: toProtoRef(ref)}, nil
 }
 
-// actorOf names the caller for the ref log (the authenticated identity
-// arrives in M9).
+// actorOf names the caller for the ref log: the authenticated identity, or
+// the request id when auth is off.
 func actorOf(ctx context.Context) string {
-	return "rpc:" + RequestID(ctx) // TODO(M9): authenticated identity
+	if id, ok := auth.FromContext(ctx); ok {
+		return id.Name
+	}
+	return "rpc:" + RequestID(ctx)
 }

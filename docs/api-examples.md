@@ -13,6 +13,8 @@ G="bin/grpcurl -plaintext"; A=localhost:7400
 $G $A list                               # reflection: xylem.v1.RepoService, ObjectService, WriteService
 ```
 
+With `--auth-tokens` (M9.1), add the token to every call: `G="bin/grpcurl -plaintext -H 'authorization: Bearer <token>'"`.
+
 ## Conventions
 
 - **Revisions are strings**: `main`, `main~2`, `main~1^2`, a hex id prefix (≥ 8 characters), or `git:<sha>` for imported commits (03 §Revision syntax).
@@ -230,7 +232,7 @@ put() { echo "{\"path\":\"$(b64 "$1")\",\"op\":\"OP_PUT\",\"mode\":\"FILE_MODE_F
 
 ### CreateChangeset
 
-Creates a draft. The server builds the trees and sets the committer (the author, at the server's clock, until M9 adds authentication). Changes may come in any order. Signature times must be whole seconds.
+Creates a draft. The server builds the trees and sets the committer (the caller's token identity, or the author when auth is off, at the server's clock). Changes may come in any order. Signature times must be whole seconds.
 
 ```bash
 X1=$($G -d "{\"repo\":\"write-demo\",\"parents\":[\"$ROOT\"],\"author\":$AUTHOR,\"message\":\"$(b64 'add README')\",

@@ -42,3 +42,39 @@ func TestResolveAuthor(t *testing.T) {
 		t.Error("malformed XYLEM_AUTHOR accepted")
 	}
 }
+
+func TestResolveToken(t *testing.T) {
+	cfgHome := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", cfgHome)
+	t.Setenv("HOME", t.TempDir())
+	t.Setenv("XYLEM_TOKEN", "")
+
+	if tok, err := ResolveToken(nil); err != nil || tok != "" {
+		t.Errorf("nothing configured: %q, %v", tok, err)
+	}
+	if err := os.MkdirAll(filepath.Join(cfgHome, "xylem"), 0o750); err != nil {
+		t.Fatal(err)
+	}
+	userCfg := filepath.Join(cfgHome, "xylem", "config.toml")
+	if err := os.WriteFile(userCfg, []byte("token = \"from-user-config\"\n[user]\nname = \"X\"\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if tok, err := ResolveToken(nil); err != nil || tok != "from-user-config" {
+		t.Errorf("user config: %q, %v", tok, err)
+	}
+	w := &Workspace{Config: Config{Token: "from-workspace"}}
+	if tok, err := ResolveToken(w); err != nil || tok != "from-workspace" {
+		t.Errorf("workspace config: %q, %v", tok, err)
+	}
+	t.Setenv("XYLEM_TOKEN", "from-env")
+	if tok, err := ResolveToken(w); err != nil || tok != "from-env" {
+		t.Errorf("env: %q, %v", tok, err)
+	}
+	t.Setenv("XYLEM_TOKEN", "")
+	if err := os.WriteFile(userCfg, []byte("token = \n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := ResolveToken(nil); err == nil {
+		t.Error("a broken user config was ignored")
+	}
+}

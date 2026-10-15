@@ -57,8 +57,8 @@ type Conflict struct {
 
 // RebaseOptions identify the rebase attempt.
 type RebaseOptions struct {
-	// Committer of rebased changesets ("Name <email>"); empty means each
-	// entry's author (the MVP has no caller identity, TODO(M9)).
+	// Committer of rebased changesets ("Name <email>"): the caller's
+	// identity; empty means each entry's author (no auth configured).
 	Committer []byte
 	// Time is the attempt's timestamp, shared by every changeset it creates
 	// (default Now).

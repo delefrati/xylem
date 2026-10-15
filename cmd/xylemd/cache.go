@@ -4,7 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -12,6 +14,7 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 
 	xylemv1 "github.com/delefrati/xylem/gen/xylem/v1"
+	"github.com/delefrati/xylem/internal/auth"
 	"github.com/delefrati/xylem/internal/cache"
 )
 
@@ -21,6 +24,7 @@ const upstreamCheckTimeout = 10 * time.Second
 // tierFlags are the flags shared by the cache and daemon tiers.
 type tierFlags struct {
 	upstream, diskDir, httpListen string
+	token, authTokens             string
 	memoryBytes, diskBytes        int64
 	maxInflight                   int
 }
@@ -32,15 +36,42 @@ func (f *tierFlags) add(cmd *cobra.Command, memoryDefault int64, diskDirDefault 
 	cmd.Flags().Int64Var(&f.diskBytes, "disk-bytes", envInt64("XYLEM_DISK_BYTES", diskDefault), "disk cache size (env XYLEM_DISK_BYTES)")
 	cmd.Flags().IntVar(&f.maxInflight, "max-inflight", cache.DefaultMaxInflight, "concurrent upstream requests; more queue, then fail fast")
 	cmd.Flags().StringVar(&f.httpListen, "http-listen", envOr("XYLEM_HTTP_LISTEN", httpDefault), "HTTP address for /healthz, /readyz, /metrics (env XYLEM_HTTP_LISTEN)")
+	cmd.Flags().StringVar(&f.token, "token", "", "token for upstream calls; prefer the XYLEM_TOKEN env (a flag shows in ps)")
+	addAuthTokensFlag(cmd, &f.authTokens)
 }
 
-// dialUpstream connects to an upstream tier and checks its kind.
-func dialUpstream(ctx context.Context, addr, want string) (*grpc.ClientConn, error) {
+// upstreamToken is --token, else XYLEM_TOKEN.
+func (f *tierFlags) upstreamToken() string {
+	if f.token != "" {
+		return f.token
+	}
+	return os.Getenv("XYLEM_TOKEN")
+}
+
+// grpcServer returns the tier's gRPC server, enforcing --auth-tokens.
+func (f *tierFlags) grpcServer(svc *cache.Service, log *slog.Logger, extra ...grpc.ServerOption) (*grpc.Server, error) {
+	if f.authTokens == "" {
+		log.Info("no --auth-tokens: clients are not authenticated here (upstream calls still carry their token or --token)")
+		return svc.NewGRPCServer(extra...), nil
+	}
+	tokens, err := auth.LoadTokens(f.authTokens)
+	if err != nil {
+		return nil, err
+	}
+	return svc.NewGRPCServer(append(auth.ServerInterceptors(tokens), extra...)...), nil
+}
+
+// dialUpstream connects to an upstream tier, sending token on calls that do
+// not forward a client's, and checks its kind.
+func dialUpstream(ctx context.Context, addr, want, token string) (*grpc.ClientConn, error) {
 	if addr == "" {
 		return nil, errors.New("--upstream is required")
 	}
-	cc, err := grpc.NewClient(addr, grpc.WithTransportCredentials(insecure.NewCredentials()),
-		grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(cache.MaxMessageSize), grpc.MaxCallSendMsgSize(cache.MaxMessageSize)))
+	opts := append([]grpc.DialOption{
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(cache.MaxMessageSize), grpc.MaxCallSendMsgSize(cache.MaxMessageSize)),
+	}, auth.DialOptions(token)...)
+	cc, err := grpc.NewClient(addr, opts...)
 	if err != nil {
 		return nil, fmt.Errorf("upstream %s: %w", addr, err)
 	}
@@ -85,7 +116,7 @@ func newCacheCmd(g *globalFlags) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			up, err := dialUpstream(ctx, f.upstream, cache.KindServer)
+			up, err := dialUpstream(ctx, f.upstream, cache.KindServer, f.upstreamToken())
 			if err != nil {
 				return err
 			}
@@ -96,8 +127,11 @@ func newCacheCmd(g *globalFlags) *cobra.Command {
 				return err
 			}
 			metrics.Watch(tier)
-			svc := cache.NewService(tier, cache.KindCache, log)
-			return serve(ctx, svc.NewGRPCServer(), tierHTTP(metrics, up), "tcp", listen, f.httpListen, log)
+			g, err := f.grpcServer(cache.NewService(tier, cache.KindCache, log), log)
+			if err != nil {
+				return err
+			}
+			return serve(ctx, g, tierHTTP(metrics, up), "tcp", listen, f.httpListen, log)
 		},
 	}
 	cmd.Flags().StringVar(&listen, "listen", envOr("XYLEM_LISTEN", ":7400"), "gRPC address (env XYLEM_LISTEN)")

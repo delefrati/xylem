@@ -67,10 +67,20 @@ func (g *globals) repoName(w *client.Workspace) string {
 	return w.Config.Repo
 }
 
+// dial connects to the server with the token for w (nil outside a
+// workspace).
+func (g *globals) dial(w *client.Workspace) (*client.Conn, error) {
+	token, err := client.ResolveToken(w)
+	if err != nil {
+		return nil, err
+	}
+	return client.Dial(g.serverAddr(w), token)
+}
+
 // fetcher dials the server (lazily: no I/O until the first call) and returns
 // a fetcher over the workspace cache. Close the connection when done.
 func (g *globals) fetcher(w *client.Workspace) (*client.Conn, *client.Fetcher, error) {
-	conn, err := client.Dial(g.serverAddr(w))
+	conn, err := g.dial(w)
 	if err != nil {
 		return nil, nil, err
 	}

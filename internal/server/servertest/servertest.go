@@ -63,8 +63,9 @@ type Server struct {
 
 // Start imports fixture profile ("" for an empty repository) into a fresh
 // database and serves it. The server's object cache is off, so every object
-// a client fetches is one recorded store read.
-func Start(t testing.TB, profile string) *Server {
+// a client fetches is one recorded store read. tweak adjusts the server's
+// config (auth, for example).
+func Start(t testing.TB, profile string, tweak ...func(*server.Config)) *Server {
 	t.Helper()
 	ctx := context.Background()
 	cs := &CountingStore{ObjectStore: store.NewMem(), read: map[hash.ID]int{}}
@@ -92,7 +93,11 @@ func Start(t testing.TB, profile string) *Server {
 		s.TipID = main.ID
 	}
 	cs.Reset() // only count client reads
-	g := server.New(server.Config{Meta: env.Meta, Objects: cs}).NewGRPCServer()
+	cfg := server.Config{Meta: env.Meta, Objects: cs}
+	for _, f := range tweak {
+		f(&cfg)
+	}
+	g := server.New(cfg).NewGRPCServer()
 	lis, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatal(err)

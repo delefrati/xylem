@@ -6,12 +6,16 @@ package client
 import (
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 
+	"github.com/BurntSushi/toml"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 
 	xylemv1 "github.com/delefrati/xylem/gen/xylem/v1"
+	"github.com/delefrati/xylem/internal/auth"
 )
 
 // Exit codes (06 §Commands).
@@ -59,16 +63,20 @@ type Conn struct {
 }
 
 // Dial connects to a server or cache tier at "host:port", or to the local
-// daemon at "unix:///path/to/daemon.sock" (09 §Local client cache vs daemon).
-func Dial(addr string) (*Conn, error) {
+// daemon at "unix:///path/to/daemon.sock" (09 §Local client cache vs daemon),
+// sending token (if not empty) on every call.
+func Dial(addr, token string) (*Conn, error) {
 	switch {
 	case addr == "":
 		return nil, errors.New("no server address: use --server or run inside a workspace")
 	case addr == "unix://" || strings.HasPrefix(addr, "unix://") && !strings.HasPrefix(addr, "unix:///"):
 		return nil, fmt.Errorf("server %q: a daemon address is unix:// followed by an absolute socket path", addr)
 	}
-	cc, err := grpc.NewClient(addr, grpc.WithTransportCredentials(insecure.NewCredentials()),
-		grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(maxMessageSize), grpc.MaxCallSendMsgSize(maxMessageSize)))
+	opts := append([]grpc.DialOption{
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(maxMessageSize), grpc.MaxCallSendMsgSize(maxMessageSize)),
+	}, auth.DialOptions(token)...)
+	cc, err := grpc.NewClient(addr, opts...)
 	if err != nil {
 		return nil, fmt.Errorf("connecting to %s: %w", addr, err)
 	}
@@ -78,6 +86,30 @@ func Dial(addr string) (*Conn, error) {
 		Object: xylemv1.NewObjectServiceClient(cc),
 		Write:  xylemv1.NewWriteServiceClient(cc),
 	}, nil
+}
+
+// ResolveToken finds the bearer token: the XYLEM_TOKEN environment
+// variable, then token in the workspace config (w may be nil), then token in
+// the user config file (~/.config/xylem/config.toml). Empty means none.
+func ResolveToken(w *Workspace) (string, error) {
+	if t := strings.TrimSpace(os.Getenv("XYLEM_TOKEN")); t != "" {
+		return t, nil
+	}
+	if w != nil && w.Config.Token != "" {
+		return w.Config.Token, nil
+	}
+	dir, err := os.UserConfigDir()
+	if err != nil {
+		return "", nil
+	}
+	var cfg struct {
+		Token string `toml:"token"`
+	}
+	path := filepath.Join(dir, "xylem", "config.toml")
+	if _, err := toml.DecodeFile(path, &cfg); err != nil && !errors.Is(err, os.ErrNotExist) {
+		return "", fmt.Errorf("reading %s: %w", path, err)
+	}
+	return cfg.Token, nil
 }
 
 // Close closes the connection.

@@ -21,7 +21,7 @@ The client is deliberately thin. It lays out files, tracks what changed locally,
 server = "localhost:7400"          # or unix:///run/user/1000/xylem/daemon.sock (M8)
 repo   = "default"
 cache_max_bytes = 4294967296       # 4 GiB local object cache; 0 = none (behind a daemon)
-token  = ""                        # M9
+token  = ""                        # bearer token (M9.1); XYLEM_TOKEN overrides
 ```
 
 `state.json`:
@@ -109,6 +109,10 @@ There is no local commit and nothing to push. A draft exists on the server the m
 ### Stack discovery
 
 The stack is the fp chain from `@` down to (excluding) the first changeset with `on_mainline = true`. Fetch it via `GetChangesets` in batches, following `parents[0]`. Cap at 1,000 entries.
+
+## Token
+
+Sent as `authorization: Bearer <token>` on every call. Look up in order: `XYLEM_TOKEN` env, `token` in `.xylem/config.toml`, then a top-level `token` in `~/.config/xylem/config.toml`. Empty means none (a server without `--auth-tokens`). `xy clone` uses the env or user config and does not save the token in the new workspace. `config.toml` is written 0600.
 
 ## Author identity
 

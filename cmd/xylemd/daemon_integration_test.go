@@ -76,7 +76,7 @@ func TestDaemonChain(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer func() { _ = src.Close() }()
-	conn, err := client.Dial(daemon)
+	conn, err := client.Dial(daemon, "")
 	if err != nil {
 		t.Fatal(err)
 	}

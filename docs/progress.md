@@ -4,9 +4,9 @@ Maintained by the implementing agent. Newest entries first within each section.
 
 ## Status
 
-- **Current milestone:** M8 — Cache tiers (complete, awaiting human review)
-- **Last checkpoint approved by human:** M7 — 2026-10-14 (M6/MVP, M5, M4, M3, M2, M1, golden vectors and M0 approved 2026-10-14)
-- **Blocked on:** human review of M8
+- **Current milestone:** M9 — Hardening
+- **Last checkpoint approved by human:** M8 — 2026-10-14 (M7, M6/MVP, M5, M4, M3, M2, M1, golden vectors and M0 approved 2026-10-14)
+- **Blocked on:** nothing
 
 ## Open questions (for the human)
 
@@ -18,6 +18,7 @@ Maintained by the implementing agent. Newest entries first within each section.
 ## Deviations from spec
 
 <!-- - YYYY-MM-DD M2.4: <what changed, why, doc updated: 04-derived-data.md> -->
+- 2026-10-14 M9.1: auth details the task left open: wrong role is PermissionDenied (05 listed only Unauthenticated); write implies read; UpdateRef (force included) needs write, as there is no admin role; reflection needs read; RPCs missing from the role table are denied (fail closed). Tokens can be stored as sha256 digests; plain ones need ≥ 16 characters. Tiers: `--token` (env XYLEM_TOKEN) for their own upstream calls, a client token is forwarded instead when present (HasObjects, PutObjects, proxied calls), and `--auth-tokens` authenticates a tier's clients; a tier whose upstream refuses its token fails at startup. Client token lookup: XYLEM_TOKEN, workspace config, then user config (06 named only the workspace config); clone does not save it; config.toml is now 0600. With auth off, the ref-log actor of a land is `rpc:<request id>` (was "client"). No TLS: runbook to say tokens need a private network or TLS termination.
 - 2026-10-14 M8.4: `cache_max_bytes = 0` means no persistent cache: objects are kept for the duration of a command (checkout needs them on disk) and dropped by EnsureLimit at its end. In code, client.NewObjectCache keeps 0 = unbounded and uses a negative limit for this mode; Workspace.Cache() maps the config.
 - 2026-10-14 M8.2: strict tiering is enforced by asking the upstream (a HasObjects of no ids) and reading its xylem-tier response header/trailer, instead of trusting an --upstream-kind flag (09); the server stamps the header too. Tier metrics carry a tier label.
 - 2026-10-14 (CI fix after M7): `xy land` requests max_attempts = 100 instead of the server default 10. With N concurrent landers about one wins each CAS round, so the last needs ~N attempts; CI's TestTwentyWorkspacesLand exhausted 10 (Aborted). 06 updated.
@@ -246,6 +247,7 @@ Verified on a fresh `git clone` of 3e549f4: `make tools && make up && make proto
 ## Log
 
 <!-- - YYYY-MM-DD M0.2: skeleton dirs + cobra roots (commit abc1234) -->
+- 2026-10-14 M9.1 auth: internal/auth (tokens file, constant-time lookup, role table, interceptors, client dial options, forwarding); server, cache and daemon take --auth-tokens; committer and ref-log actor are the identity; xy sends XYLEM_TOKEN/config token. Tests: every RPC × {no token, bad token, reader, writer}, identity on create/land/ref log, tiers (cache auth, daemon forwarding, startup refusal), e2e clone as reader / land as writer.
 - 2026-10-14 M8.6: test/bench (tag bench, `make bench-tiers`): in-process server → cache (TCP, max 64 upstream in flight) → daemon (Unix socket, with proxy); 100 concurrent sparse clones (10 recent main revisions × 4 profiles, no-cache workspaces) direct vs through the tiers after a 10-clone warm-up, then a fresh chain whose cache is killed after 10 clones complete. Asserts server reads < 5% of object requests and that every failure is Unavailable.
 - 2026-10-14 M8.5: both tiers serve /healthz, /readyz (every upstream answers: the cache's server; the daemon's cache and server) and /metrics (xylem_cache_hits_total, xylem_cache_misses_total, xylem_cache_bytes{level=memory|disk}, xylem_upstream_inflight, labeled tier=cache|daemon). Tested: with the cache killed, the daemon's /readyz is 503, an uncached fetch fails with Unavailable, and proxied history calls still work.
 - 2026-10-14 M8.3/M8.4: `xylemd daemon` — ObjectService from a Tier on a Unix socket ($XDG_RUNTIME_DIR/xylem/daemon.sock, dir 0700, stale socket removed, live one refused), disk cache under $XDG_CACHE_HOME/xylem/objects (20 GiB), upstream must be a cache (or a server with --allow-direct-upstream), --server must be a server. RepoService and WriteService are proxied byte for byte by a generic gRPC proxy (UnknownServiceHandler + a codec that passes raw frames and marshals protos), so new RPCs need no proxy code. Clients: `unix:///abs/path` addresses; `cache_max_bytes = 0` (`xy clone --no-cache`) keeps no persistent local cache. TestDaemonChain: clone parity (full + 3 sparse), log and read-file through daemon → cache → server, and a no-cache workspace commits and lands through the daemon.

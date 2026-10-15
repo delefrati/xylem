@@ -21,7 +21,8 @@ The `.proto` files under `proto/xylem/v1/` are the source of truth once created.
 | `FailedPrecondition` | Binary file for blame; missing blobs on `CreateChangeset` (the message lists up to 20 hex ids) |
 | `Aborted` | Ref CAS mismatch on `UpdateRef` (the client may retry) |
 | `ResourceExhausted` | Query cost limit hit, or rate limit (M9) |
-| `Unauthenticated` | Missing or invalid token (M9) |
+| `Unauthenticated` | Missing or invalid token (M9.1) |
+| `PermissionDenied` | Valid token without the role the RPC needs (M9.1) |
 
 Merge conflicts are **not** errors. `Land` and `Rebase` return them in the response body.
 
@@ -301,7 +302,8 @@ message LandResponse {
 
 ## Server implementation notes
 
-- **Interceptors (M4):** request id, structured logging (method, repo, duration, code), Prometheus metrics (`xylem_rpc_duration_seconds{method,code}`), panic recovery, and an optional bearer-token auth hook (no-op until M9).
+- **Interceptors (M4):** request id, structured logging (method, repo, duration, code), Prometheus metrics (`xylem_rpc_duration_seconds{method,code}`), panic recovery, and bearer-token auth (M9.1, below).
+- **Auth (M9.1):** with `--auth-tokens`, every call needs `authorization: Bearer <token>`. The tokens file maps each token to an identity (`"Name <email>"`) and roles. Read RPCs (RepoService queries, `GetObjects`, `HasObjects`, reflection) need `read`; `UpdateRef`, `PutObjects` and every WriteService RPC need `write`, which implies `read`. RPCs missing from the role table (`internal/auth`) are denied. The identity is the committer of changesets created by `CreateChangeset`, `Rebase` and `Land`, and the actor in the ref log. Tokens are compared as SHA-256 digests in constant time.
 - **Cost limits:** Log and Diff stop after scanning 100k rows or tree entries, or 10 s per page, and return a `next_page_token` (or `ResourceExhausted` if no progress was possible).
 - **Health:** `/healthz` (process up) and `/readyz` (Postgres ping plus object store `Has` on a sentinel object).
 - Enable gRPC server reflection in dev builds so `grpcurl` works.

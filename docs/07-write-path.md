@@ -8,7 +8,7 @@ All writes happen on the server. The client uploads blobs and describes changes;
 2. **Validate request shape:** path syntax, op/mode combinations, limits (03 §Validation).
 3. **Check blobs exist and sizes match:** `ObjectStore.Has(blob ids)`. If any are missing, return `FailedPrecondition` listing up to 20 missing ids in the message (the client re-checks with `HasObjects` anyway). Then verify declared sizes per 03 rule 3 (header-only read, in parallel).
 4. **Load parents:** fetch the parents' `core_derived` rows, plus the rows of `jump(p0)` and `jump(jump(p0))` for the first parent `p0` (needed by the jump-pointer rule in 04). If any parent is missing → `NotFound`.
-5. **Fill committer:** the server's authenticated identity, or the author in the MVP, with the time set to now (UTC, tz 0).
+5. **Fill committer:** the caller's authenticated identity (M9.1), or the author when auth is off, with the time set to now (UTC, tz 0).
 6. **Encode** the canonical body and compute the id.
 7. **Fast idempotency check:** if `(repo, id)` exists, return it with `already_existed = true`.
 8. **Apply changes** to the first parent's root tree (`treeops.Apply`). This also validates the structural rules (file/dir clashes, delete of missing paths, no-op puts). Store the new trees in the object store **before** the transaction. Orphan trees are harmless; GC is future work.
@@ -91,7 +91,7 @@ Land(stack, target="main", max_attempts=10):
 ```
 
 - **Retries.** Each attempt rebases the *original* stack onto the current tip with a fresh `attemptTime`, so rebased ids differ between attempts. Changesets from a failed attempt remain as harmless orphan drafts (cleaned up by future GC). The cost per attempt is O(stack changes × depth), so retries are cheap.
-- **Committer of rebased changesets:** the caller's identity (author of the request in the MVP; the authenticated identity from M9) and the attempt's start time. Author fields are preserved.
+- **Committer of rebased changesets:** the caller's authenticated identity (each entry's author when auth is off) and the attempt's start time. Author fields are preserved.
 - **Backoff:** `jitter(n) = rand(0, min(200ms, 5ms·2^n))`.
 - **Post-merge testing model:** there is no pre-merge serialization and no merge queue lock. Correctness under concurrency is guaranteed only at the file level (the conflict table). Semantic breakage is caught by post-merge CI (see `13-future.md`). This follows Scion's lesson that a global merge-queue lock doesn't scale to agent-level throughput.
 

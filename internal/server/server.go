@@ -16,6 +16,7 @@ import (
 	"google.golang.org/grpc/status"
 
 	xylemv1 "github.com/delefrati/xylem/gen/xylem/v1"
+	"github.com/delefrati/xylem/internal/auth"
 	"github.com/delefrati/xylem/internal/cache"
 	"github.com/delefrati/xylem/internal/derived"
 	"github.com/delefrati/xylem/internal/meta"
@@ -30,10 +31,6 @@ const DefaultRepo = "default"
 // §Conventions): larger than the 64 MiB maximum blob.
 const MaxMessageSize = 80 << 20
 
-// AuthFunc authorizes a call; nil allows everything. The hook is a no-op
-// until M9.
-type AuthFunc func(ctx context.Context, fullMethod string) error
-
 // Config configures a Server.
 type Config struct {
 	Meta        meta.Store
@@ -41,7 +38,9 @@ type Config struct {
 	RepoOptions repo.Options
 	Logger      *slog.Logger
 	Registry    *prometheus.Registry // metrics; a new one if nil
-	Auth        AuthFunc
+	// Auth enforces bearer tokens and per-RPC roles (M9.1); nil allows
+	// every call.
+	Auth *auth.Tokens
 	// ObjectCacheBytes bounds the in-memory cache of stored object frames.
 	ObjectCacheBytes int64
 	// Ready reports whether dependencies are reachable (for /readyz).

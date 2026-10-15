@@ -16,7 +16,7 @@ import (
 
 func dial(t *testing.T, addr string) *client.Conn {
 	t.Helper()
-	c, err := client.Dial(addr)
+	c, err := client.Dial(addr, "")
 	if err != nil {
 		t.Fatal(err)
 	}

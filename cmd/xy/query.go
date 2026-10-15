@@ -29,7 +29,7 @@ func (g *globals) query() (*query, error) {
 	if err != nil {
 		return nil, err
 	}
-	conn, err := client.Dial(g.serverAddr(w))
+	conn, err := g.dial(w)
 	if err != nil {
 		return nil, err
 	}

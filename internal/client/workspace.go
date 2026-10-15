@@ -34,7 +34,7 @@ type Config struct {
 	Server        string `toml:"server"`
 	Repo          string `toml:"repo"`
 	CacheMaxBytes int64  `toml:"cache_max_bytes"` // 0: no persistent cache (use with a daemon)
-	Token         string `toml:"token"`           // M9
+	Token         string `toml:"token"`           // bearer token (M9.1); XYLEM_TOKEN overrides
 }
 
 // Path is a repository path in JSON: a string when it is valid UTF-8, or
@@ -188,7 +188,7 @@ func (w *Workspace) SaveConfig() error {
 	if err := toml.NewEncoder(&buf).Encode(w.Config); err != nil {
 		return err
 	}
-	return WriteFileAtomic(w.Meta("config.toml"), buf.Bytes(), 0o644)
+	return WriteFileAtomic(w.Meta("config.toml"), buf.Bytes(), 0o600) // may hold a token
 }
 
 // WriteFileAtomic writes data to a temp file in path's directory, fsyncs it,

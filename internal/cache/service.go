@@ -15,6 +15,7 @@ import (
 	"google.golang.org/grpc/status"
 
 	xylemv1 "github.com/delefrati/xylem/gen/xylem/v1"
+	"github.com/delefrati/xylem/internal/auth"
 	"github.com/delefrati/xylem/internal/hash"
 )
 
@@ -40,6 +41,9 @@ const (
 func UpstreamKind(ctx context.Context, upstream xylemv1.ObjectServiceClient) (string, error) {
 	var header, trailer metadata.MD
 	_, err := upstream.HasObjects(ctx, &xylemv1.HasObjectsRequest{}, grpc.Header(&header), grpc.Trailer(&trailer))
+	if c := status.Code(err); c == codes.Unauthenticated || c == codes.PermissionDenied {
+		return "", fmt.Errorf("upstream refused the call (check the tier's token): %w", err)
+	}
 	for _, md := range []metadata.MD{header, trailer} {
 		if v := md.Get(TierHeader); len(v) > 0 {
 			return v[0], nil
@@ -139,7 +143,7 @@ func (s *Service) HasObjects(ctx context.Context, req *xylemv1.HasObjectsRequest
 	if err != nil {
 		return nil, err
 	}
-	present, err := s.tier.Has(ctx, req.GetRepo(), ids)
+	present, err := s.tier.Has(auth.Forward(ctx), req.GetRepo(), ids)
 	if err != nil {
 		return nil, err
 	}
@@ -168,7 +172,8 @@ func (s *Service) PutObjects(stream xylemv1.ObjectService_PutObjectsServer) erro
 		}
 		objs = append(objs, msg.GetObjects()...)
 	}
-	resp, err := s.tier.Put(stream.Context(), repo, objs)
+	// Writes act as the client: its token, if it sent one, goes upstream.
+	resp, err := s.tier.Put(auth.Forward(stream.Context()), repo, objs)
 	if err != nil {
 		return err
 	}

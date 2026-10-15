@@ -86,7 +86,7 @@ volumes: { pgdata: {}, miniodata: {} }
 | `--object-cache-bytes` | `XYLEM_OBJECT_CACHE_BYTES` | `1073741824` | in-memory LRU |
 | `--merge-max-bytes` | `XYLEM_MERGE_MAX_BYTES` | `8388608` | largest file side rebase merges line by line (M7); larger ones conflict as a whole |
 | `--log-level` | `XYLEM_LOG_LEVEL` | `info` | |
-| `--auth-token` | `XYLEM_AUTH_TOKEN` | empty (disabled) | M9 |
+| `--auth-tokens` | `XYLEM_AUTH_TOKENS` | empty (auth off) | tokens file, see below (M9.1) |
 
 ### Cache tier (`xylemd cache`, M8)
 
@@ -97,6 +97,8 @@ volumes: { pgdata: {}, miniodata: {} }
 | `--memory-bytes` | `XYLEM_MEMORY_BYTES` | `4294967296` | memory LRU |
 | `--disk-dir` / `--disk-bytes` | `XYLEM_DISK_DIR` / `XYLEM_DISK_BYTES` | off / `107374182400` | disk LRU (fs-store layout) |
 | `--max-inflight` | | `256` | concurrent upstream requests; then a queue of 4×, then `ResourceExhausted` |
+| `--token` | `XYLEM_TOKEN` | empty | sent upstream on the tier's own calls (cache fills); a client's token is forwarded instead when it sent one. Give it the `read` role only, so writes act as the client |
+| `--auth-tokens` | `XYLEM_AUTH_TOKENS` | empty | authenticate this tier's clients, same file format as the server |
 
 ### Daemon (`xylemd daemon`, M8)
 
@@ -108,8 +110,26 @@ volumes: { pgdata: {}, miniodata: {} }
 | `--http-listen` | `XYLEM_HTTP_LISTEN` | `127.0.0.1:7402` | `/healthz`, `/readyz`, `/metrics` |
 | `--memory-bytes` | `XYLEM_MEMORY_BYTES` | `268435456` | |
 | `--disk-dir` / `--disk-bytes` | `XYLEM_DISK_DIR` / `XYLEM_DISK_BYTES` | `$XDG_CACHE_HOME/xylem/objects` / `21474836480` | shared by every workspace on the machine |
+| `--token` / `--auth-tokens` | `XYLEM_TOKEN` / `XYLEM_AUTH_TOKENS` | empty | as for the cache; the socket's 0700 directory already limits clients to the user |
 
 Clients use it with `xy clone unix:///run/user/1000/xylem/daemon.sock <dir> --no-cache` (or `server = "unix://…"` and `cache_max_bytes = 0` in `.xylem/config.toml`).
+
+### Tokens file (M9.1)
+
+```toml
+[[token]]
+identity = "Ada Lovelace <ada@example.com>"   # committer and ref-log actor
+roles = ["read", "write"]                     # write implies read
+token = "…"                                   # at least 16 characters, or:
+# sha256 = "<64 hex: sha256 of the token>"    # keeps plain tokens out of the file
+
+[[token]]
+identity = "Regional Cache <ops@example.com>"
+roles = ["read"]
+token = "…"
+```
+
+Generate tokens with `openssl rand -hex 32`. Tokens travel in plain gRPC metadata: use them only on a private network or behind TLS termination (Xylem has no TLS of its own yet).
 
 `xylemd migrate` applies pending migrations. `xylemd admin init-repo <name>` creates a repo with an empty root changeset and a `main` ref, for repos not imported from git.
 

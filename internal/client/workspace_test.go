@@ -127,12 +127,12 @@ func TestLock(t *testing.T) {
 func TestDialAddresses(t *testing.T) {
 	t.Parallel()
 	for _, bad := range []string{"", "unix://", "unix://relative.sock"} {
-		if _, err := Dial(bad); err == nil {
+		if _, err := Dial(bad, ""); err == nil {
 			t.Errorf("Dial(%q) succeeded", bad)
 		}
 	}
 	for _, good := range []string{"localhost:7400", "unix:///run/user/1000/xylem/daemon.sock"} {
-		c, err := Dial(good) // lazy: no connection is made
+		c, err := Dial(good, "") // lazy: no connection is made
 		if err != nil {
 			t.Errorf("Dial(%q): %v", good, err)
 			continue

@@ -14,6 +14,7 @@ import (
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 
+	"github.com/delefrati/xylem/internal/auth"
 	"github.com/delefrati/xylem/internal/repo"
 	"github.com/delefrati/xylem/internal/store"
 )
@@ -85,8 +86,12 @@ func TestInterceptors(t *testing.T) {
 		t.Errorf("generated request id %q", seen)
 	}
 
-	// The auth hook can reject calls.
-	denied := New(Config{Auth: func(context.Context, string) error { return errors.New("no token") }})
+	// With auth on, a call without a token is rejected.
+	tokens, err := auth.ParseTokens([]byte("[[token]]\nidentity = \"A <a@x>\"\nroles = [\"read\"]\ntoken = \"0123456789abcdef\"\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	denied := New(Config{Auth: tokens})
 	called := false
 	_, err = denied.unaryInterceptor(context.Background(), nil, info, func(context.Context, any) (any, error) { called = true; return nil, nil })
 	if status.Code(err) != codes.Unauthenticated || called {

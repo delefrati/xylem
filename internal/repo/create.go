@@ -39,8 +39,11 @@ type CreateRequest struct {
 type CreateOptions struct {
 	AllowRoot  bool                 // allow a root changeset in a non-empty repo (importer, init-repo)
 	AllowEmpty bool                 // allow a single-parent changeset with no changes (importer)
-	Committer  *changeset.Signature // default: the author, at Now, tz 0
-	TrustSizes bool                 // skip the blob size check (importer computed them)
+	Committer  *changeset.Signature // default: CommitterName, else the author, at Now, tz 0
+	// CommitterName is the committer identity ("Name <email>") stamped at Now
+	// when Committer is nil: the authenticated caller (M9.1).
+	CommitterName []byte
+	TrustSizes    bool // skip the blob size check (importer computed them)
 }
 
 // MissingBlobsError lists blobs referenced by a changeset that the object
@@ -105,9 +108,12 @@ func (r *Repo) CreateChangeset(ctx context.Context, req CreateRequest, opts Crea
 	}
 
 	// 5–6. Committer, encode, id.
-	if opts.Committer != nil {
+	switch {
+	case opts.Committer != nil:
 		cs.Committer = *opts.Committer
-	} else {
+	case opts.CommitterName != nil:
+		cs.Committer = changeset.Signature{NameEmail: opts.CommitterName, Time: r.opts.Now().Unix()}
+	default:
 		cs.Committer = changeset.Signature{NameEmail: cs.Author.NameEmail, Time: r.opts.Now().Unix()}
 	}
 	body, err := cs.Encode()

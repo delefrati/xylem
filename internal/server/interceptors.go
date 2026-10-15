@@ -14,6 +14,7 @@ import (
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 
+	"github.com/delefrati/xylem/internal/auth"
 	"github.com/delefrati/xylem/internal/cache"
 )
 
@@ -85,9 +86,7 @@ func (s *Server) begin(ctx context.Context, method string) (context.Context, err
 	_ = grpc.SetHeader(ctx, metadata.Pairs(RequestIDHeader, id, cache.TierHeader, cache.KindServer))
 	_ = grpc.SetTrailer(ctx, metadata.Pairs(cache.TierHeader, cache.KindServer))
 	if s.cfg.Auth != nil {
-		if err := s.cfg.Auth(ctx, method); err != nil {
-			return ctx, status.Error(codes.Unauthenticated, err.Error())
-		}
+		return auth.Authorize(ctx, s.cfg.Auth, method)
 	}
 	return ctx, nil
 }

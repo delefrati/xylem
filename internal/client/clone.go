@@ -21,6 +21,8 @@ type CloneOptions struct {
 	// NoCache keeps no local object cache (cache_max_bytes = 0), for
 	// workspaces whose server is the local daemon.
 	NoCache bool
+	// Token is sent on every call (not saved in the workspace config).
+	Token string
 }
 
 // CloneResult describes a finished clone.
@@ -78,7 +80,7 @@ func Clone(ctx context.Context, server, dir string, opts CloneOptions) (res *Clo
 		}
 	}()
 
-	conn, err := Dial(server)
+	conn, err := Dial(server, opts.Token)
 	if err != nil {
 		return nil, err
 	}

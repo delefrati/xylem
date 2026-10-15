@@ -5,14 +5,15 @@ import (
 	"fmt"
 
 	xylemv1 "github.com/delefrati/xylem/gen/xylem/v1"
+	"github.com/delefrati/xylem/internal/auth"
 	"github.com/delefrati/xylem/internal/changeset"
 	"github.com/delefrati/xylem/internal/hash"
 	"github.com/delefrati/xylem/internal/repo"
 )
 
 // CreateChangeset implements WriteService (07 §CreateChangeset). The
-// committer is the author at the server's clock until M9 sets it from the
-// authenticated identity. Validation failures are InvalidArgument, missing
+// committer is the authenticated identity (the author when auth is off) at
+// the server's clock. Validation failures are InvalidArgument, missing
 // blobs FailedPrecondition (up to 20 ids listed) and unknown parents NotFound.
 func (s *Server) CreateChangeset(ctx context.Context, req *xylemv1.CreateChangesetRequest) (*xylemv1.CreateChangesetResponse, error) {
 	r, err := s.repo(ctx, req.GetRepo())
@@ -35,8 +36,7 @@ func (s *Server) CreateChangeset(ctx context.Context, req *xylemv1.CreateChanges
 			return nil, err
 		}
 	}
-	// TODO(M9): committer = the authenticated identity.
-	cs, existed, err := r.CreateChangeset(ctx, cr, repo.CreateOptions{})
+	cs, existed, err := r.CreateChangeset(ctx, cr, repo.CreateOptions{CommitterName: committerOf(ctx)})
 	if err != nil {
 		return nil, err
 	}
@@ -49,6 +49,15 @@ func (s *Server) CreateChangeset(ctx context.Context, req *xylemv1.CreateChanges
 		_, on = onMain[cs.ID]
 	}
 	return &xylemv1.CreateChangesetResponse{Changeset: toProtoChangeset(cs, on, false), AlreadyExisted: existed}, nil
+}
+
+// committerOf is the authenticated identity as a committer, or nil (the
+// author) when auth is off.
+func committerOf(ctx context.Context) []byte {
+	if id, ok := auth.FromContext(ctx); ok {
+		return []byte(id.Name)
+	}
+	return nil
 }
 
 // MaxLandAttempts caps a request's max_attempts.
@@ -115,7 +124,7 @@ func (s *Server) Rebase(ctx context.Context, req *xylemv1.RebaseRequest) (*xylem
 	if err != nil {
 		return nil, err
 	}
-	res, err := r.RebaseStack(ctx, stack, onto.ID, repo.RebaseOptions{}) // TODO(M9): committer = caller identity
+	res, err := r.RebaseStack(ctx, stack, onto.ID, repo.RebaseOptions{Committer: committerOf(ctx)})
 	if err != nil {
 		return nil, err
 	}
@@ -141,7 +150,8 @@ func (s *Server) Land(ctx context.Context, req *xylemv1.LandRequest) (*xylemv1.L
 		return nil, invalidf("max_attempts %d, max %d", req.GetMaxAttempts(), MaxLandAttempts)
 	}
 	res, err := r.Land(ctx, stack, repo.LandOptions{
-		Target: req.GetTargetRef(), MaxAttempts: int(req.GetMaxAttempts()), Actor: "client", // TODO(M9): authenticated identity
+		Target: req.GetTargetRef(), MaxAttempts: int(req.GetMaxAttempts()),
+		Committer: committerOf(ctx), Actor: actorOf(ctx),
 	})
 	if err != nil {
 		return nil, err

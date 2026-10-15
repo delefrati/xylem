@@ -22,7 +22,11 @@ func newCloneCmd(g *globals) *cobra.Command {
 			if sparse != "" {
 				dirs = strings.Split(sparse, ",")
 			}
-			res, err := client.Clone(cmd.Context(), a[0], a[1], client.CloneOptions{Repo: repo, Rev: rev, Sparse: dirs, NoCache: noCache})
+			token, err := client.ResolveToken(nil)
+			if err != nil {
+				return err
+			}
+			res, err := client.Clone(cmd.Context(), a[0], a[1], client.CloneOptions{Repo: repo, Rev: rev, Sparse: dirs, NoCache: noCache, Token: token})
 			if err != nil {
 				return err
 			}
