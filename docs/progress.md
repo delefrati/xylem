@@ -4,9 +4,9 @@ Maintained by the implementing agent. Newest entries first within each section.
 
 ## Status
 
-- **Current milestone:** M9 — Hardening
+- **Current milestone:** M9 — Hardening (complete, awaiting human review)
 - **Last checkpoint approved by human:** M8 — 2026-10-14 (M7, M6/MVP, M5, M4, M3, M2, M1, golden vectors and M0 approved 2026-10-14)
-- **Blocked on:** nothing
+- **Blocked on:** human review of M9, including two Proposed ADRs: ADR-023 (object sweep design; nothing implemented) and ADR-024 (OpenTelemetry dependencies; implemented, reversible)
 
 ## Open questions (for the human)
 
@@ -69,6 +69,37 @@ Maintained by the implementing agent. Newest entries first within each section.
 - 2026-10-14 M0.2: client CLI lives in `cmd/xy` (M0.2, binary name), not `cmd/xylem` as the layout tree said; doc updated: 02-architecture.md
 
 ## Milestone results
+
+### M9 — 2026-10-14
+
+M9 has no Verification section, so these are the checks I ran, on the M9.6 tree:
+- `make check` → exit 0 (latency test now runs alone at the end, see Deviations).
+- `make e2e`, `make parity` → ok.
+- The acceptance tests twice under -race → ok: TestAuthEveryRPC, TestAuthIdentity, TestRateLimits, TestAuthThroughTiers, TestLandConcurrency* (batcher off and on), TestLandBatcher*, TestDryRunAfterConcurrentLands, TestGCCommand, TestTraceAcrossTiers.
+- `make bench-land` → 3.7–4.0× over 5 runs; `make bench-tiers` unchanged (0.49% server reads).
+- A restore drill on the dev stack: `pg_dump -Fc` → `pg_restore` into a scratch DB → `xylemd verify default --sample 200 --objects` (0 violations) and `xylemd gc --dry-run` (0 missing).
+
+| Acceptance criterion | Evidence | Result |
+|---|---|---|
+| Unauthenticated and wrong-role calls are rejected, with tests for every RPC's role | TestAuthEveryRPC calls all 17 RPCs (from the generated service descriptors) with no token, a bad token, a reader and a writer token: Unauthenticated / Unauthenticated / PermissionDenied on the 5 write RPCs / allowed. TestEveryMethodHasARole fails if an RPC is added without a role (unknown methods are denied). Also through the tiers (TestAuthThroughTiers) and end to end with `xy` (TestAuth) | ✅ |
+| The land batcher improves throughput ≥ 3× at 50 concurrent landers (report numbers), and the concurrency suite still passes with it on | 50 gRPC landers × 20 lands, all rebasing: off ~395–428 lands/s (2.4–2.7 CAS attempts per land), on (20 ms) ~1,500–1,590 lands/s (1.00 attempts): 3.7–4.0×. The four concurrency tests run with the batcher off and on (20 ms), plus two batching servers racing | ✅ |
+| GC dry-run on `branchy` after the concurrency suite reports only expected orphans | TestDryRunAfterConcurrentLands: right after importing branchy, 0 orphans (stored = reachable); after concurrent lands (batcher off and on, racing each other), a batched land failing before its CAS, and 5 uploaded blobs never committed: the orphans are 66 trees from the aborted land attempts and exactly those 5 blobs; within the 7-day grace period, none | ✅ |
+
+**Summary:** Xylem can now be run by a small team:
+- **Auth (M9.1):** static bearer tokens with read/write roles on every RPC. The identity becomes the committer and the ref-log actor. Tiers forward the client's token, so writes are attributed to the client.
+- **Rate limits (M9.2):** per-caller token buckets on Blame, Log with a path, Diff with hunks and MergeBase, off by default.
+- **Land batcher (M9.3):** `--land-batch-window`. Lands are rebased in memory and written with the ref CAS in one transaction, so a lost CAS leaves no drafts. About 4× the land throughput under contention.
+- **Object GC dry run (M9.4):** `xylemd gc --dry-run`. The sweep is only designed (ADR-023).
+- **Tracing (M9.5):** OpenTelemetry, off by default. One trace covers xy → daemon → cache → server.
+- **Runbook (M9.6):** `docs/runbook.md`, with a tested restore drill.
+
+Worth a look:
+- ADR-023 (sweep: re-mark plus a trash prefix with restore-on-read) needs your decision before anything is deleted.
+- ADR-024 (the OpenTelemetry dependencies) needs your approval.
+- UpdateRef, force included, only needs the `write` role, because the spec has no admin role.
+- Tokens travel over plaintext gRPC: the runbook requires a private network or a TLS proxy.
+- `CreateChangeset` was split into build + insert so that rebases can build changesets in memory.
+- `make test-integration` runs the latency test alone at the end.
 
 ### M8 — 2026-10-14
 
@@ -252,6 +283,7 @@ Verified on a fresh `git clone` of 3e549f4: `make tools && make up && make proto
 ## Log
 
 <!-- - YYYY-MM-DD M0.2: skeleton dirs + cobra roots (commit abc1234) -->
+- 2026-10-14 M9.6 runbook: docs/runbook.md (topology, configuration incl. tokens and recommended flags, deploy/upgrade order, backups with the objects-before-rows consistency argument, a restore drill run on the dev stack, real restore, verify usage, land contention, incident table, metrics and Prometheus alert rules, logs and traces); linked from the README.
 - 2026-10-14 M9.5 tracing: internal/tracing (Setup/Install, otelgrpc stats handlers on every server, tier and client, W3C propagation), --otlp-endpoint on xylemd server/cache/daemon, XYLEM_OTLP_ENDPOINT for xy (one root span per command), cache.fetch spans on tier batches. TestTraceAcrossTiers: in one trace, xy → daemon → server for a proxied ResolveRevision and xy → daemon → cache → server for GetObjects through both batches, each server span parented by a distinct client span.
 - 2026-10-14 M9.4 object GC dry-run: store.Lister (mem/fs/s3), meta.ListRepos and ForEachObjectRoot, internal/gc (parallel level-by-level mark, listing with a grace period, orphans by kind, missing-reachable count), `xylemd gc --dry-run [--min-age] [--list] [--json]`, ADR-023 (Proposed) for the sweep. Acceptance test: branchy imported → 0 orphans; after concurrent lands (batcher off and on, racing), a batched land failing before its CAS, and 5 uploaded-never-committed blobs → orphans are only trees (66) and exactly those 5 blobs; with the 7-day grace period, none.
 - 2026-10-14 M9.3 land batcher: --land-batch-window (repo.Options.LandBatchWindow); per-ref goroutine collecting requests (window, early start, cap 100), in-memory rebase via pendingSet, one InsertAndCASRef transaction per batch, whole-batch retry on a lost CAS, xylem_land_batch_requests histogram. Concurrency suite runs with the batcher off and on (20 ms); new tests: two batching servers racing (no orphans from lost CASes), per-request outcomes within a batch (error, conflict with an earlier request, cancellation, skip). test/bench TestLandBenchmark (make bench-land) asserts ≥ 3×. Note: TestCreateChangesetLatency (100 ms sanity bound under -race) failed once under load in make check (p50 118 ms; 13.9 ms alone) and passed on rerun.

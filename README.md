@@ -7,7 +7,7 @@ A server-first version control system for large monorepos, built for always-onli
 - **Content-addressed everything.** Any tier can cache anything.
 - **O(change) commits.** No locks; `main` moves by compare-and-swap.
 
-> **Status:** the MVP (M0–M6) is implemented: git import, the read and write APIs, the `xy` client and concurrent land. See [`docs/roadmap.md`](docs/roadmap.md) and [`docs/progress.md`](docs/progress.md).
+> **Status:** M0–M9 are implemented. The MVP (M0–M6) covers git import, the read and write APIs, the `xy` client and concurrent land; since then: line-level merge (M7), cache tiers (M8), and hardening — auth, rate limits, the land batcher, GC dry run, tracing and a [runbook](docs/runbook.md) (M9). See [`docs/roadmap.md`](docs/roadmap.md) and [`docs/progress.md`](docs/progress.md).
 
 ## How this repo is meant to be built
 
@@ -45,6 +45,7 @@ This repository starts as a **plan**: specs, milestones and agent instructions. 
 | [11 Dev environment](docs/11-dev-environment.md) | Make, compose, config |
 | [12 Decisions](docs/12-decisions.md) | ADRs |
 | [13 Future](docs/13-future.md) | Post-MVP |
+| [Runbook](docs/runbook.md) | Deploying and operating: config, backups, restore drill, alerts, verify |
 
 ## Getting started
 
