@@ -10,8 +10,10 @@ import (
 )
 
 // BlameKind is kind 4 (04 §Kind 4): blame of a path at a changeset that
-// modifies it, following first-parent history.
-var BlameKind = Kind{Name: "blame", Version: 1}
+// modifies it, following first-parent history. Version 2 (M6.9): the line
+// diff compacts change runs like git, which changes attributions; values
+// stored by version 1 are ignored.
+var BlameKind = Kind{Name: "blame", Version: 2}
 
 // BlameLine attributes one line: the changeset that introduced it and its
 // 1-based line number in that changeset's version of the file.

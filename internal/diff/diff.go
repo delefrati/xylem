@@ -8,6 +8,10 @@
 // replaced wholesale (all of a's lines deleted, all of b's inserted); the
 // result is still a correct diff, just not minimal there.
 //
+// Among equally minimal scripts, runs of changed lines are then compacted to
+// the positions git's diff chooses (compact.go), so blame attributes
+// ambiguous lines (blank lines, repeated lines) as git does.
+//
 // Lines end after each '\n'; a final line without one is still a line. Lines
 // are compared as byte strings including their terminator, as git does.
 package diff
@@ -64,6 +68,7 @@ func Diff(a, b [][]byte) []Edit {
 	ia, ib := intern(a, b)
 	var matches []pair
 	lcs(ia, ib, 0, 0, MaxCost, &matches)
+	matches = compact(ia, ib, matches)
 	return toEdits(matches, len(a), len(b))
 }
 

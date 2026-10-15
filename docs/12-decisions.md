@@ -90,6 +90,11 @@ An implementing agent may add **Proposed** ADRs. Only a human changes them to Ac
 **Decision:** Use the community MinIO builds `pgsty/minio` and `pgsty/mc`, pinned to `RELEASE.*` tags. Same binaries, commands, env vars and `mc ready` healthcheck as upstream.
 **Consequences:** No code or config changes beyond image names. Alternatives if this fork goes stale: `bitnamilegacy/minio` (frozen at 2025-07), or a different S3 server (SeaweedFS, Garage, RustFS) at the cost of a different init script.
 
+### ADR-021 — Git-style compaction of the line diff · Proposed
+**Context:** Blame parity with git on real repositories was 94.6% (cobra), below the 99% bar. Git and Xylem both produce minimal diffs, but many lines (blank lines, repeated lines) can be matched in several equally minimal ways, and blame attributes them differently.
+**Decision:** After the Myers search, `internal/diff` compacts runs of changed lines as git does: each run slides up, then down as far as it can (merging runs it touches), and settles at the lowest position next to a change in the other file, else at the bottom. The first file is compacted against the second, then the second against the first. The result stays minimal. Blame's derived kind moves to version 2 so values computed before are ignored. This is our own implementation of the behavior, not a port of git's code.
+**Consequences:** Blame parity: cobra 97.6%, prometheus (18,923 commits) 98.86%; diff hunks match git in more cases (80% vs 64% of random small inputs). The remaining gap comes from parts of git's xdiff that make its diffs non-minimal or differently tie-broken (discarding lines that are unique or too frequent before the search, cost cutoffs on large diffs, the indent heuristic). Matching those means reproducing xdiff (LGPL-2.1) much more closely; that is an open question for the human (progress.md Q-004).
+
 ---
 
 <!-- Template:

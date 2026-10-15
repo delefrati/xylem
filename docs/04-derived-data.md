@@ -141,7 +141,7 @@ For P = repository root, the result is simply the first-parent log.
 
 **Storage key:** blame is stored only at changesets that **modify** P. To answer `blame(C, P)`, first find `L = last modifier of P at or before C` (path history, limit 1), then return `blame(L, P)`.
 
-**Value encoding** (`kind = "blame"`, version 1):
+**Value encoding** (`kind = "blame"`, version 2; version 1 had the same encoding but was computed before the line diff compacted change runs):
 
 ```
 uvarint(origin_count) ‖ id*                      // distinct origin changesets
@@ -171,7 +171,7 @@ Iterative evaluation: collect the chain `L, prev(L), prev(prev(L)) …` until a 
 ## Kind 5 — diff (computed, not stored)
 
 - **Tree diff** `TreeDiff(A, B, pathFilter)`: walk both root trees together, skipping identical subtree ids, and emit `(path, old mode/blob, new mode/blob)`. When `A = parents[0](B)` and there's no filter, read `changeset_files` directly instead (it's free).
-- **Line diff** is Myers' O(ND) algorithm (git's default) in `internal/diff`. It produces hunks with 3 lines of context for unified output. Line diff isn't stored; blame memoizes the expensive part.
+- **Line diff** is Myers' O(ND) algorithm (git's default) in `internal/diff`, followed by git-style compaction: runs of changed lines slide to canonical positions (as far down as they go, or the lowest position next to a change in the other file), so ambiguous lines such as blank lines are attributed as git does (ADR-021). It produces hunks with 3 lines of context for unified output. Line diff isn't stored; blame memoizes the expensive part.
 
 ## Adding a new derived kind later (checklist)
 
