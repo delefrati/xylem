@@ -79,7 +79,7 @@ Given a git repo and a Xylem server that imported it:
 | Log (path) | `git log --first-parent --format=%H <tip> -- <path>` | `Log(main, path)` | exact sequence; 50 sampled files and 10 sampled dirs |
 | Diff (names) | `git diff --name-status --no-renames -z A B` | `Diff(A, B)` | exact set with statuses |
 | Diff (content) | — | `Diff(A, B, hunks)` | applying hunks to A's file yields B's file (algorithm differences allowed) |
-| Blame | `git blame --first-parent --porcelain <sha> -- <path>` | `Blame` | % lines with same origin; 100% on `tiny`/`edge`, ≥ 99% on `branchy` and external |
+| Blame | `git blame --first-parent --porcelain <sha> -- <path>` | `Blame` | % lines with same origin; 100% on `tiny`/`edge`, ≥ 99% on `branchy`, ≥ 98% on external repos (Q-004: git's xdiff matches ambiguous lines differently; ADR-021) |
 | Merge-base | `git merge-base --all A B` | `MergeBase` | exact set; 200 sampled pairs |
 | Is-ancestor | `git merge-base --is-ancestor A B` | `IsAncestor` | exact; 500 sampled pairs |
 | Read file | `git cat-file blob <sha>:<path>` | `ReadFile` | byte-identical; 200 samples |

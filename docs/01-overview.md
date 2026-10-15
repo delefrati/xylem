@@ -46,7 +46,7 @@ Git assumes every client is a full, offline-capable server. Most monorepo client
 | `CreateChangeset` latency, 10-file change | p50 < 30 ms, p99 < 150 ms |
 | Sparse clone of one top-level dir | proportional to that dir's size, not the repo's |
 | Blame of a file with 1k-commit history, cold | < 2 s; warm < 50 ms |
-| Parity suite | 100% on synthetic fixtures; ≥ 99% blame lines on real repos |
+| Parity suite | 100% on synthetic fixtures; ≥ 98% blame lines on real repos (Q-004) |
 
 ## Glossary
 

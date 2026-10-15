@@ -63,3 +63,7 @@ After M7's diff3 in rebase: a `xy resolve` workflow for conflicts. The server re
 - Agent "superfans": a Claude agent per component watching metrics and logs, as in the Scion article. Expose a read-only metrics and logs API and runbooks so an agent can triage.
 - Rate limiting per client identity. Quotas for expensive queries (blame on huge files).
 - OpenTelemetry tracing across tiers.
+
+## Closer git diff emulation (from Q-004)
+
+Blame parity on real repositories is ~98–99% (ADR-021). To approach 100%, `internal/diff` would need more of git's xdiff behavior: discarding unique and very frequent lines before the search, cost cutoffs on expensive diffs, and the indent heuristic. Write it from the behavior, using git as the oracle; xdiff is LGPL-2.1.

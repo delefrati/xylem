@@ -55,7 +55,8 @@ func TestParityExternal(t *testing.T) {
 			if _, err := os.Stat(dir); err != nil {
 				t.Skipf("%s not fetched (scripts/fetch-external-fixtures.sh): %v", name, err)
 			}
-			runParity(t, name, dir, parity.Options{Commits: 100, BlameThreshold: 99})
+			// Real repos: blame ≥ 98% (Q-004; git's xdiff tie-breaks differ on ambiguous lines).
+			runParity(t, name, dir, parity.Options{Commits: 100, BlameThreshold: 98})
 		})
 	}
 }

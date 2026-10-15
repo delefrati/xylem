@@ -6,11 +6,11 @@ Maintained by the implementing agent. Newest entries first within each section.
 
 - **Current milestone:** M6 — Write path and land (complete, ⛔ MVP checkpoint: awaiting human review)
 - **Last checkpoint approved by human:** M5 — 2026-10-14 (M4, M3, M2, M1, golden vectors and M0 approved 2026-10-14)
-- **Blocked on:** human review of M6 / the MVP, and Q-004 (blame parity on real repos)
+- **Blocked on:** human review of M6 / the MVP
 
 ## Open questions (for the human)
 
-- [ ] Q-004 (M6.9): Blame parity on real repositories is just under the 99% bar: prometheus (18,923 commits) 98.86%, cobra 98.19%; every other check is 100% on both. Both blames are valid; they differ on lines that can be matched several equally good ways (blank and repeated lines). ADR-021 (Proposed) added git-style compaction, which raised cobra from 94.6% to 97.6–98.2%. The rest comes from parts of git's xdiff that make its diff non-minimal or tie-break differently: it discards lines that are unique or very frequent before the search, cuts the search short on costly diffs, and applies the indent heuristic. Options: (a) reproduce those xdiff behaviors in internal/diff (closer to git, but xdiff is LGPL-2.1: a reimplementation must avoid copying its code); (b) accept ≥ 98% blame parity on real repos (the synthetic fixtures stay at 100%) and record that as the MVP bar; (c) keep 99% and treat MVP item 1 as open. Recommendation: (b) now, with (a) as a post-MVP task. → answer:
+- [x] Q-004 (M6.9): Blame parity on real repositories is just under the 99% bar: prometheus (18,923 commits) 98.86%, cobra 98.19%; every other check is 100% on both. Both blames are valid; they differ on lines that can be matched several equally good ways (blank and repeated lines). ADR-021 (Proposed) added git-style compaction, which raised cobra from 94.6% to 97.6–98.2%. The rest comes from parts of git's xdiff that make its diff non-minimal or tie-break differently: it discards lines that are unique or very frequent before the search, cuts the search short on costly diffs, and applies the indent heuristic. Options: (a) reproduce those xdiff behaviors in internal/diff (closer to git, but xdiff is LGPL-2.1: a reimplementation must avoid copying its code); (b) accept ≥ 98% blame parity on real repos (the synthetic fixtures stay at 100%) and record that as the MVP bar; (c) keep 99% and treat MVP item 1 as open. Recommendation: (b) now, with (a) as a post-MVP task. → answer: (b), accept ≥ 98% blame parity on real repos (2026-10-14); 01, 10 and TestParityExternal updated.
 - [x] Q-003 (M1.8 ⛔): Approve the golden vectors in `testdata/golden/README.md`? Approval freezes the encodings; later changes need an ADR. → answer: approved 2026-10-14 (incl. `blob_hello` = "hello\n", synthetic sizes in `tree_sizes`, merge changes vs first parent)
 - [x] Q-001 (M0.1): GitHub owner for the module path (`github.com/<owner>/xylem`)? → answer: `delefrati` (module `github.com/delefrati/xylem`)
 - [x] Q-002 (M0.5): License (default MIT)? → answer: MIT
@@ -68,12 +68,12 @@ Verified on the M6.9 commit:
 - `make up && make check && make parity && make e2e` → exit 0.
 - `go test -tags integration -race -count=5 -run TestLandConcurrency ./internal/repo/...` → ok (5 consecutive runs, 44 s).
 - `make demo` → ok, and re-runnable.
-- `make parity-external` → every check 100% except blame (see Q-004).
+- `make parity-external` → pass: every check 100% except blame, which is ≥ 98% (prometheus 98.86%, cobra 98.19%; Q-004).
 - `xylemd verify <repo> --all --objects` → 0 violations on the dev repos default, demo (after two demo lands), quickstart (branchy plus a land) and write-demo.
 
 | Acceptance criterion | Evidence | Result |
 |---|---|---|
-| Every item of 01 §"MVP is done when" is demonstrated and recorded | MVP checklist below: three of four items fully met; item 1 is met except blame at 98.86% (needs 99%) | ⚠️ Q-004 |
+| Every item of 01 §"MVP is done when" is demonstrated and recorded | MVP checklist below: all four items met (blame bar on real repos set to ≥ 98% by Q-004) | ✅ |
 | Concurrency suite passes 5 consecutive runs (`-count=5 -race`) | TestLandConcurrency{Disjoint,SameFile,Crash}: ok ×5 | ✅ |
 | `xylemd verify --all` passes after the concurrency suite | each concurrency test ends with repo.Verify(objects) → 0 violations; `xylemd verify` 0 violations on every dev repo after demo and quickstart lands | ✅ |
 | e2e: two workspaces edit different files → both land; then the same file → the second gets exit 3 and its workspace is untouched | `make e2e` TestConcurrentWorkspaces (real `xy` binary): both land; second same-file land exits 3, README and state.json unchanged, status clean | ✅ |
@@ -82,13 +82,13 @@ Verified on the M6.9 commit:
 
 | Item | Evidence | Result |
 |---|---|---|
-| A real repo (≥ 10k commits) imports and passes the tree, log, blame, diff and merge-base parity checks | `make parity-external`: prometheus @6e69e84, 18,923 commits, imported in 43 s (59,760 blobs, 2.6 GB). 100% on tree (101/101), log (1/1), path log (60/60), diff names (131/131), diff content (59,955/59,955), merge-base (200/200), is-ancestor (500/500), read file (200/200) and clone (1,819/1,819 files). **Blame: 9,928/10,042 = 98.86%** (needs 99%) | ⚠️ blame (Q-004) |
+| A real repo (≥ 10k commits) imports and passes the tree, log, blame, diff and merge-base parity checks | `make parity-external`: prometheus @6e69e84, 18,923 commits, imported in 43 s (59,760 blobs, 2.6 GB). 100% on tree (101/101), log (1/1), path log (60/60), diff names (131/131), diff content (59,955/59,955), merge-base (200/200), is-ancestor (500/500), read file (200/200) and clone (1,819/1,819 files). blame 9,928/10,042 = 98.86% (bar ≥ 98%, Q-004) | ✅ |
 | `xy clone --sparse <dir>` produces a working tree byte-identical to git's for those dirs, fetching only objects under them | clone parity row 100% on tiny, edge, branchy, cobra and prometheus (full + 3 random sparse profiles each, vs `git archive`); TestFetchFullAndSparse: the sparse fetch reads exactly the trees on the path plus in-scope blobs (server counter) | ✅ |
 | Twenty concurrent workspaces can each commit and `xy land` non-conflicting changes, all land, and `main` stays a valid first-parent chain | TestTwentyWorkspacesLand (client, under -race): 20 clones commit and land at once and all land, with 1–6 CAS attempts each (default max 10). main's log shows the 20 at consecutive depths above the import, and a sync brings all 20 files. Also at repo level: 20×50 lands in TestLandConcurrencyDisjoint | ✅ |
 | `make check` is green: lint, unit, integration and race tests | `make check` → exit 0 | ✅ |
 
 **Summary:** the write path is in. Clients upload verified blobs (`PutObjects`, blobs only) and create drafts server-side (`CreateChangeset`). `xy add/commit/stack/sync/land` work end to end. Rebase follows 07's file-level conflict table. Land is a CAS loop with jittered backoff that keeps ref, mainline and ref log in one transaction. Conflicts come back in the response and give exit 3. `make demo`, `make run-server`, `make parity-external` and a README quickstart are real now. Worth a look:
-- **Q-004:** blame parity on real repos is 98–98.9%; ADR-021 (Proposed) adds git-style diff compaction and bumps the blame kind to version 2.
+- **Q-004 (answered: accept ≥ 98%):** blame parity on real repos is 98–98.9%; ADR-021 adds git-style diff compaction and bumps the blame kind to version 2.
 - `land` refuses with local changes, like `sync`.
 - Rebased changesets drop the `git-sha` extra.
 - Land metrics are recorded in the RPC adapter.
