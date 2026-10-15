@@ -33,8 +33,8 @@ var ErrLocked = errors.New("workspace is locked by another xy command")
 type Config struct {
 	Server        string `toml:"server"`
 	Repo          string `toml:"repo"`
-	CacheMaxBytes int64  `toml:"cache_max_bytes"`
-	Token         string `toml:"token"` // M9
+	CacheMaxBytes int64  `toml:"cache_max_bytes"` // 0: no persistent cache (use with a daemon)
+	Token         string `toml:"token"`           // M9
 }
 
 // Path is a repository path in JSON: a string when it is valid UTF-8, or
@@ -97,7 +97,19 @@ func (w *Workspace) Meta(name string) string {
 	return filepath.Join(w.Root, MetaDir, name)
 }
 
-// Init creates a workspace in dir, which must exist.
+// Cache returns the workspace's local object cache. cache_max_bytes = 0 in
+// config.toml means no persistent cache (objects are dropped after each
+// command; a daemon is expected to cache them).
+func (w *Workspace) Cache() *ObjectCache {
+	limit := w.Config.CacheMaxBytes
+	if limit == 0 {
+		limit = -1
+	}
+	return NewObjectCache(w.Meta("objects"), limit)
+}
+
+// Init creates a workspace in dir, which must exist. cfg.CacheMaxBytes 0
+// means DefaultCacheMaxBytes and a negative value no persistent cache.
 func Init(dir string, cfg Config) (*Workspace, error) {
 	root, err := filepath.Abs(dir)
 	if err != nil {
@@ -106,8 +118,11 @@ func Init(dir string, cfg Config) (*Workspace, error) {
 	if cfg.Repo == "" {
 		cfg.Repo = "default"
 	}
-	if cfg.CacheMaxBytes == 0 {
+	switch {
+	case cfg.CacheMaxBytes == 0:
 		cfg.CacheMaxBytes = DefaultCacheMaxBytes
+	case cfg.CacheMaxBytes < 0: // no persistent cache (stored as 0)
+		cfg.CacheMaxBytes = 0
 	}
 	w := &Workspace{Root: root, Config: cfg, State: State{Version: StateVersion, Sparse: []Path{}, Added: []Path{}}}
 	if err := os.Mkdir(filepath.Join(root, MetaDir), 0o750); err != nil {

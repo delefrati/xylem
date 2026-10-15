@@ -18,6 +18,9 @@ type CloneOptions struct {
 	Repo   string   // default "default"
 	Rev    string   // default "main"
 	Sparse []string // sparse directories; empty for a full checkout
+	// NoCache keeps no local object cache (cache_max_bytes = 0), for
+	// workspaces whose server is the local daemon.
+	NoCache bool
 }
 
 // CloneResult describes a finished clone.
@@ -89,11 +92,15 @@ func Clone(ctx context.Context, server, dir string, opts CloneOptions) (res *Clo
 	copy(target.Root[:], resp.RootTree)
 	target.Sparse = sparse
 
-	w, err := Init(dir, Config{Server: server, Repo: opts.Repo})
+	cfg := Config{Server: server, Repo: opts.Repo}
+	if opts.NoCache {
+		cfg.CacheMaxBytes = -1
+	}
+	w, err := Init(dir, cfg)
 	if err != nil {
 		return nil, err
 	}
-	f := NewFetcher(conn, opts.Repo, NewObjectCache(w.Meta("objects"), w.Config.CacheMaxBytes))
+	f := NewFetcher(conn, opts.Repo, w.Cache())
 	unlock, err := w.Lock()
 	if err != nil {
 		return nil, err

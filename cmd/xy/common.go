@@ -34,7 +34,7 @@ func (g *globals) workspace() (*client.Workspace, error) {
 
 // cache returns a workspace's local object cache.
 func cacheOf(w *client.Workspace) *client.ObjectCache {
-	return client.NewObjectCache(w.Meta("objects"), w.Config.CacheMaxBytes)
+	return w.Cache()
 }
 
 // emit prints v as JSON with --json, or calls human otherwise.

@@ -98,6 +98,19 @@ volumes: { pgdata: {}, miniodata: {} }
 | `--disk-dir` / `--disk-bytes` | `XYLEM_DISK_DIR` / `XYLEM_DISK_BYTES` | off / `107374182400` | disk LRU (fs-store layout) |
 | `--max-inflight` | | `256` | concurrent upstream requests; then a queue of 4×, then `ResourceExhausted` |
 
+### Daemon (`xylemd daemon`, M8)
+
+| Flag | Env | Default | Notes |
+|---|---|---|---|
+| `--upstream` | `XYLEM_UPSTREAM` | (required) | a `xylemd cache` (a server only with `--allow-direct-upstream`) |
+| `--server` | `XYLEM_SERVER` | (required) | the `xylemd server` that RepoService and WriteService calls are proxied to |
+| `--socket` | `XYLEM_SOCKET` | `$XDG_RUNTIME_DIR/xylem/daemon.sock` | directory created 0700; a stale socket file is removed |
+| `--http-listen` | `XYLEM_HTTP_LISTEN` | `127.0.0.1:7402` | `/healthz`, `/readyz`, `/metrics` |
+| `--memory-bytes` | `XYLEM_MEMORY_BYTES` | `268435456` | |
+| `--disk-dir` / `--disk-bytes` | `XYLEM_DISK_DIR` / `XYLEM_DISK_BYTES` | `$XDG_CACHE_HOME/xylem/objects` / `21474836480` | shared by every workspace on the machine |
+
+Clients use it with `xy clone unix:///run/user/1000/xylem/daemon.sock <dir> --no-cache` (or `server = "unix://…"` and `cache_max_bytes = 0` in `.xylem/config.toml`).
+
 `xylemd migrate` applies pending migrations. `xylemd admin init-repo <name>` creates a repo with an empty root changeset and a `main` ref, for repos not imported from git.
 
 ## `.golangci.yml` (baseline)

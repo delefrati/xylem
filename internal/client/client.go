@@ -58,14 +58,14 @@ type Conn struct {
 	Write  xylemv1.WriteServiceClient
 }
 
-// Dial connects to a server address "host:port". "unix://…" addresses are
-// reserved for the daemon (M8).
+// Dial connects to a server or cache tier at "host:port", or to the local
+// daemon at "unix:///path/to/daemon.sock" (09 §Local client cache vs daemon).
 func Dial(addr string) (*Conn, error) {
 	switch {
 	case addr == "":
 		return nil, errors.New("no server address: use --server or run inside a workspace")
-	case strings.HasPrefix(addr, "unix://"):
-		return nil, fmt.Errorf("server %q: unix socket addresses (the local daemon) are available from M8", addr)
+	case addr == "unix://" || strings.HasPrefix(addr, "unix://") && !strings.HasPrefix(addr, "unix:///"):
+		return nil, fmt.Errorf("server %q: a daemon address is unix:// followed by an absolute socket path", addr)
 	}
 	cc, err := grpc.NewClient(addr, grpc.WithTransportCredentials(insecure.NewCredentials()),
 		grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(maxMessageSize), grpc.MaxCallSendMsgSize(maxMessageSize)))

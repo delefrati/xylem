@@ -11,6 +11,7 @@ import (
 
 func newCloneCmd(g *globals) *cobra.Command {
 	var rev, sparse string
+	var noCache bool
 	cmd := &cobra.Command{
 		Use:   "clone <server> <dir>",
 		Short: "Create a workspace and check out a revision (full or --sparse)",
@@ -21,7 +22,7 @@ func newCloneCmd(g *globals) *cobra.Command {
 			if sparse != "" {
 				dirs = strings.Split(sparse, ",")
 			}
-			res, err := client.Clone(cmd.Context(), a[0], a[1], client.CloneOptions{Repo: repo, Rev: rev, Sparse: dirs})
+			res, err := client.Clone(cmd.Context(), a[0], a[1], client.CloneOptions{Repo: repo, Rev: rev, Sparse: dirs, NoCache: noCache})
 			if err != nil {
 				return err
 			}
@@ -40,5 +41,6 @@ func newCloneCmd(g *globals) *cobra.Command {
 	}
 	cmd.Flags().StringVar(&rev, "rev", "main", "revision to check out")
 	cmd.Flags().StringVar(&sparse, "sparse", "", "comma-separated directories to check out (default: everything)")
+	cmd.Flags().BoolVar(&noCache, "no-cache", false, "keep no local object cache (cache_max_bytes = 0); use with a daemon (unix://…)")
 	return cmd
 }

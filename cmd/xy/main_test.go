@@ -43,21 +43,6 @@ func TestExitCodes(t *testing.T) {
 	}
 }
 
-func TestDialRejectsUnixUntilM8(t *testing.T) {
-	t.Parallel()
-	if _, err := client.Dial("unix:///run/x.sock"); err == nil || !strings.Contains(err.Error(), "M8") {
-		t.Errorf("unix:// = %v", err)
-	}
-	if _, err := client.Dial(""); err == nil {
-		t.Error("empty address accepted")
-	}
-	c, err := client.Dial("localhost:7400") // lazy: no connection attempt yet
-	if err != nil {
-		t.Fatal(err)
-	}
-	_ = c.Close()
-}
-
 func TestCacheCommands(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()

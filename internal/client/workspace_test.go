@@ -123,3 +123,39 @@ func TestLock(t *testing.T) {
 	}
 	again()
 }
+
+func TestDialAddresses(t *testing.T) {
+	t.Parallel()
+	for _, bad := range []string{"", "unix://", "unix://relative.sock"} {
+		if _, err := Dial(bad); err == nil {
+			t.Errorf("Dial(%q) succeeded", bad)
+		}
+	}
+	for _, good := range []string{"localhost:7400", "unix:///run/user/1000/xylem/daemon.sock"} {
+		c, err := Dial(good) // lazy: no connection is made
+		if err != nil {
+			t.Errorf("Dial(%q): %v", good, err)
+			continue
+		}
+		_ = c.Close()
+	}
+}
+
+func TestNoCacheConfig(t *testing.T) {
+	t.Parallel()
+	w, err := Init(t.TempDir(), Config{Server: "x:1", CacheMaxBytes: -1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	reopened, err := Open(w.Root)
+	if err != nil || reopened.Config.CacheMaxBytes != 0 {
+		t.Fatalf("cache_max_bytes = %d, %v", reopened.Config.CacheMaxBytes, err)
+	}
+	if s, _ := reopened.Cache().Stats(); s.MaxBytes >= 0 {
+		t.Errorf("a 0 limit in config.toml should mean no persistent cache, got limit %d", s.MaxBytes)
+	}
+	d, err := Init(t.TempDir(), Config{Server: "x:1"})
+	if err != nil || d.Config.CacheMaxBytes != DefaultCacheMaxBytes {
+		t.Errorf("default limit %d, %v", d.Config.CacheMaxBytes, err)
+	}
+}

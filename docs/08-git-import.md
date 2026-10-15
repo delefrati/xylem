@@ -1,6 +1,6 @@
 # 08 — Git import
 
-`xylemd import` turns a git repository into Xylem changesets. It is resumable and incremental, so it doubles as a **mirror sync** during a migration where git remains the source of truth.
+`xylemd import` turns a git repository into Xylem changesets. It is resumable and incremental, so it doubles as a **mirror sync** during a migration where git remains the source of truth. The reverse direction, once Xylem is the source of truth, is `xylemd export-git` (§Export, M10).
 
 ## Command
 
@@ -96,6 +96,61 @@ Any mismatch fails with a precise report. This is the M3 acceptance gate.
 - Submodule entry (skipped).
 - Identical blob content at many paths (dedup).
 
-## Export (post-MVP)
+## Export (M10)
 
-`xylemd export-git` would write Xylem mainline changes back to a git repo, mapping native changesets to new git commits, so git-only tools keep working. See `13-future.md`.
+`xylemd export-git` writes changesets landed natively in Xylem back to a git repository as ordinary commits, so git-only consumers keep working once Xylem is the source of truth (ADR-022). It is the mirror image of import: **one writer at a time**. While git is the writer, run `import --follow`. Once Xylem is the writer, run `export-git --follow`. Nothing reconciles two writers.
+
+```
+xylemd export-git --git /path/to/repo.git --branch main [--repo default] [--follow 30s] [--batch 500] [--limit N]
+```
+
+- Exports every native changeset reachable from Xylem `main` that isn't in git yet, parents before children, then moves `refs/heads/<branch>` to the commit for `main`'s tip.
+- The target is the repository the history was imported from (or a clone of it). Imported changesets are never re-created; their `git_sha` must already exist there. A repo with no imported history can export into an empty git repo.
+- It doesn't push. Pushing to a remote is the operator's step (`git push` after each run, or from cron).
+
+### Mapping (Xylem → git)
+
+| Xylem | git |
+|---|---|
+| FILE / EXEC / SYMLINK | 100644 / 100755 / 120000 |
+| PUT / DELETE (vs first parent) | `M` / `D` in `git fast-import`, all `D` before any `M` |
+| parents | `from <first parent's sha>`, `merge <sha>` for the rest |
+| author / committer | `Name <email> <unix> <±hhmm>` from the changeset (no wall clock) |
+| message | bytes as-is; `encoding` command if a `git-encoding` extra is present |
+| paths | raw bytes, always C-quoted with octal escapes |
+| other extras (`rebased-from`, …) | not exported |
+
+Because `from` starts from the parent commit's tree, entries Xylem doesn't model (submodule gitlinks from imported history) carry over untouched. A Xylem PUT at a gitlink's path replaces it with the file.
+
+Output is **deterministic**: the same changeset over the same parents always yields the same git sha. That makes a re-run after a crash idempotent.
+
+### Writing git (`internal/gitsink`)
+
+Shell out, as for reading (ADR-010). A long-lived `git fast-import --done --quiet` process receives commits with inline blob data on a staging ref `refs/xylem/export/<branch>`. `get-mark` returns each commit's sha, and `checkpoint` flushes the pack and refs. The branch itself only moves via `git update-ref refs/heads/<branch> <new> <old>`, a compare-and-swap.
+
+### Pipeline (`internal/exporter`)
+
+1. **Boundary:** the newest changesets on `main`'s history that are already in git (imported or in `git_exports`). Find it with batched lookups along `mainline`, not a walk over all history.
+2. **Divergence check:** the git branch tip must be a known commit on `main`'s first-parent history. Otherwise fail with `ErrDiverged` and write nothing.
+3. **Order:** native changesets after the boundary in topological order, including non-first-parent parents of native merges.
+4. **Blobs:** read from the object store and streamed inline. A blob already in `git_blobs` (imported, or exported earlier) is referenced by its git sha instead.
+5. **Every `--batch`:** `checkpoint` → `RecordGitExports` (and `git_blobs` rows) → CAS the branch. A crash anywhere re-exports to the same shas.
+
+### Mapping table (`migrations/0003_git_exports.sql`)
+
+```sql
+CREATE TABLE git_exports (
+  repo_id      SMALLINT    NOT NULL REFERENCES repos(id),
+  changeset_id BYTEA       NOT NULL CHECK (octet_length(changeset_id) = 32),
+  git_sha      BYTEA       NOT NULL CHECK (octet_length(git_sha) = 20),
+  exported_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (repo_id, changeset_id),
+  UNIQUE (repo_id, git_sha)
+);
+```
+
+Changeset bodies are immutable and hashed, so the git sha of a native changeset can't go into its `git-sha` extra or the `changesets.git_sha` column, which stays "imported from". Readers treat both sources as one: `git:<sha>` revisions, the `gitSha` field of `Log`/`GetChangesets`, and the importer's sha map. Re-importing an exported commit is therefore a no-op.
+
+### Verification (`xylemd verify-export`)
+
+For each exported changeset (`--all` or `--sample N --seed S`): the `verify-import` tree comparison (gitlinks filtered), plus an exact check of author, committer, message and parent mapping. Then `git fsck --strict --no-dangling` on the target.

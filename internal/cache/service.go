@@ -248,13 +248,10 @@ func (s *Service) Interceptors() []grpc.ServerOption {
 	}
 }
 
-// NewGRPCServer returns a gRPC server with the tier's ObjectService and
-// extra services registered by register (the daemon's proxy).
-func (s *Service) NewGRPCServer(register ...func(*grpc.Server)) *grpc.Server {
-	g := grpc.NewServer(s.Interceptors()...)
+// NewGRPCServer returns a gRPC server with the tier's ObjectService; extra
+// options add, for example, the daemon's Proxy.
+func (s *Service) NewGRPCServer(extra ...grpc.ServerOption) *grpc.Server {
+	g := grpc.NewServer(append(s.Interceptors(), extra...)...)
 	xylemv1.RegisterObjectServiceServer(g, s)
-	for _, r := range register {
-		r(g)
-	}
 	return g
 }

@@ -27,6 +27,8 @@ type ObjectCache struct {
 var ErrCacheMiss = errors.New("object not in local cache")
 
 // NewObjectCache returns the cache in dir with the given size limit (≤ 0: unlimited).
+// A negative maxBytes keeps objects only until EnsureLimit (no persistent
+// cache, for workspaces behind a daemon); 0 means unbounded.
 func NewObjectCache(dir string, maxBytes int64) *ObjectCache {
 	return &ObjectCache{dir: dir, maxBytes: maxBytes}
 }
@@ -163,7 +165,11 @@ func (c *ObjectCache) GC(target int64) (removed int, freed int64, err error) {
 
 // EnsureLimit evicts down to 90% of the limit if the cache is over it.
 func (c *ObjectCache) EnsureLimit() error {
-	if c.maxBytes <= 0 {
+	switch {
+	case c.maxBytes < 0: // no persistent cache: drop what this command fetched
+		_, _, err := c.GC(0)
+		return err
+	case c.maxBytes == 0: // unbounded
 		return nil
 	}
 	s, err := c.Stats()

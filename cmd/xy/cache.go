@@ -22,6 +22,9 @@ func newCacheCmd(g *globals) *cobra.Command {
 				return err
 			}
 			return g.emit(cmd, s, func(out io.Writer) error {
+				if s.MaxBytes < 0 {
+					return printf(out, "%d objects, %d bytes (no persistent cache)\n", s.Objects, s.Bytes)
+				}
 				return printf(out, "%d objects, %d bytes (limit %d)\n", s.Objects, s.Bytes, s.MaxBytes)
 			})
 		},

@@ -20,7 +20,7 @@ The client is deliberately thin. It lays out files, tracks what changed locally,
 ```toml
 server = "localhost:7400"          # or unix:///run/user/1000/xylem/daemon.sock (M8)
 repo   = "default"
-cache_max_bytes = 4294967296       # 4 GiB local object cache
+cache_max_bytes = 4294967296       # 4 GiB local object cache; 0 = none (behind a daemon)
 token  = ""                        # M9
 ```
 
@@ -42,7 +42,7 @@ token  = ""                        # M9
 
 | Command | Behaviour |
 |---|---|
-| `xy clone <server> <dir> [--repo R] [--rev main] [--sparse a,b]` | Create the workspace, resolve the revision, fetch trees (scoped), fetch blobs, write files and state. |
+| `xy clone <server> <dir> [--repo R] [--rev main] [--sparse a,b] [--no-cache]` | Create the workspace, resolve the revision, fetch trees (scoped), fetch blobs, write files and state. |
 | `xy status` | List `M`/`A`/`D`/`?` paths (sparse scope only) with paths relative to the cwd. `--json` for tools. |
 | `xy diff [paths]` | Working copy vs `@`, unified diff. Computed locally from the cached base blobs and working files, using the same `internal/diff`. |
 | `xy add <paths>` | Mark untracked files for inclusion in the next commit. |
