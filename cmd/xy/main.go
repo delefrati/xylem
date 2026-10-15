@@ -82,14 +82,3 @@ func notYet(milestone string) func(*cobra.Command, []string) error {
 func m6(use, short string) *cobra.Command {
 	return &cobra.Command{Use: use, Short: short + " (M6)", RunE: notYet("M6")}
 }
-
-// m5 is a placeholder for a command implemented later in M5.
-func m5(use, short string) *cobra.Command {
-	return &cobra.Command{Use: use, Short: short, RunE: notYet("M5")}
-}
-
-func newCheckoutCmd(*globals) *cobra.Command {
-	return m5("checkout <rev>", "Move the working copy to a revision")
-}
-
-func newSparseCmd(*globals) *cobra.Command { return m5("sparse", "List or change the sparse profile") }

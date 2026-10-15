@@ -58,6 +58,9 @@ func NewFetcher(conn *Conn, repo string, cache *ObjectCache) *Fetcher {
 	return f
 }
 
+// Conn returns the fetcher's server connection.
+func (f *Fetcher) Conn() *Conn { return f.conn }
+
 // Stats returns what has been fetched so far.
 func (f *Fetcher) Stats() FetchStats {
 	return FetchStats{Trees: f.trees.Load(), Blobs: f.blobs.Load(), Bytes: f.bytes.Load()}
