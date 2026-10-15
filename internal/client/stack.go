@@ -13,6 +13,12 @@ import (
 // MaxStack caps stack discovery (06 §Stack discovery).
 const MaxStack = 1000
 
+// LandAttempts is the max_attempts xy land asks for. With N workspaces
+// landing at once, about one wins each CAS round, so the server's default of
+// 10 is too low for many concurrent landers; backoff caps each wait at
+// 200 ms.
+const LandAttempts = 100
+
 // Stack returns the draft changesets from @ down to (excluding) the first
 // changeset on the mainline, bottom → top (06 §Stack discovery).
 func (w *Workspace) Stack(ctx context.Context, f *Fetcher) ([]ChangesetInfo, error) {
@@ -226,7 +232,7 @@ func (w *Workspace) Land(ctx context.Context, f *Fetcher) (*MoveResult, error) {
 	if err != nil {
 		return nil, err
 	}
-	resp, err := f.conn.Write.Land(ctx, &xylemv1.LandRequest{Repo: f.repo, Stack: ids})
+	resp, err := f.conn.Write.Land(ctx, &xylemv1.LandRequest{Repo: f.repo, Stack: ids, MaxAttempts: LandAttempts})
 	if err != nil {
 		return nil, err
 	}

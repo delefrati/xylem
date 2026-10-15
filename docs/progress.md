@@ -4,9 +4,9 @@ Maintained by the implementing agent. Newest entries first within each section.
 
 ## Status
 
-- **Current milestone:** M7 — Line merge (complete, awaiting human review)
-- **Last checkpoint approved by human:** M6 (MVP) — 2026-10-14 (M5, M4, M3, M2, M1, golden vectors and M0 approved 2026-10-14)
-- **Blocked on:** human review of M7
+- **Current milestone:** M8 — Cache tiers
+- **Last checkpoint approved by human:** M7 — 2026-10-14 (M6/MVP, M5, M4, M3, M2, M1, golden vectors and M0 approved 2026-10-14)
+- **Blocked on:** —
 
 ## Open questions (for the human)
 
@@ -18,6 +18,7 @@ Maintained by the implementing agent. Newest entries first within each section.
 ## Deviations from spec
 
 <!-- - YYYY-MM-DD M2.4: <what changed, why, doc updated: 04-derived-data.md> -->
+- 2026-10-14 (CI fix after M7): `xy land` requests max_attempts = 100 instead of the server default 10. With N concurrent landers about one wins each CAS round, so the last needs ~N attempts; CI's TestTwentyWorkspacesLand exhausted 10 (Aborted). 06 updated.
 - 2026-10-14 M6.9: `make demo` imports into a separate `demo` repository and serves it on :7410/:7411 so it neither moves the dev `default` repo nor clashes with a running `make run-server`; on re-runs it keeps the earlier import (main has demo lands on top, which the mirror importer refuses to move). `make parity` now runs only `^TestParity$`; externals run via `make parity-external`.
 - 2026-10-14 M6.7: `xy land` refuses with local changes (exit 4), like `sync` (06 only says so for sync): landing then checking out the new tip could otherwise fail on a dirty file after the land already happened. Untracked files don't count.
 - 2026-10-14 M6.5: the land metrics (xylem_land_attempts, xylem_land_conflicts_total) are recorded by the Land RPC adapter (M6.6), where the server's Prometheus registry lives; repo.Land reports attempts and conflicts in its result, so package repo stays free of metrics.
@@ -64,7 +65,7 @@ Maintained by the implementing agent. Newest entries first within each section.
 
 ### M7 — 2026-10-14
 
-Verified on 37601c1:
+Approved by the human 2026-10-14. Verified on 37601c1:
 - `make check` → exit 0.
 - `make parity` and `make e2e` → ok.
 - `go test -tags integration -race -count=5 -run TestLandConcurrency ./internal/repo/` → ok (5 consecutive runs, 52 s).

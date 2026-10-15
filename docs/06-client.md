@@ -55,7 +55,7 @@ token  = ""                        # M9
 | `xy checkout <rev>` | Move the working copy to rev. Refuses if dirty files would be overwritten (`--force` discards). |
 | `xy stack` | Show draft changesets between `@` and mainline (fp chain walk via `GetChangesets`). |
 | `xy sync` | Fetch the `main` tip. With no drafts, `checkout main`. With drafts, call `Rebase(stack onto main)` and check out the rebased top. Refuses when dirty. |
-| `xy land` | `Land(stack)`, then check out the new tip. On conflict, print the conflict list and leave the workspace unchanged. |
+| `xy land` | `Land(stack, max_attempts=100)`, then check out the new tip. On conflict, print the conflict list and leave the workspace unchanged. Refuses with local changes (exit 4). |
 | `xy sparse list\|add <dir>\|remove <dir>` | Change the profile, then fetch or remove files accordingly. |
 | `xy cache stats\|gc` | Local object cache size and LRU eviction. |
 | `xy version` | Build info. |
