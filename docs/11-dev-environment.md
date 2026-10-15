@@ -134,6 +134,8 @@ token = "…"
 
 Generate tokens with `openssl rand -hex 32`. Tokens travel in plain gRPC metadata: use them only on a private network or behind TLS termination (Xylem has no TLS of its own yet).
 
+`xylemd gc --dry-run [--min-age 168h] [--list] [--json]` (M9.4) reports unreferenced objects older than the grace period, by kind, across every repository (objects are shared). Nothing is deleted until ADR-023 is approved.
+
 `xylemd migrate` applies pending migrations. `xylemd admin init-repo <name>` creates a repo with an empty root changeset and a `main` ref, for repos not imported from git.
 
 ## `.golangci.yml` (baseline)

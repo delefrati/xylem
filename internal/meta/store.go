@@ -114,7 +114,6 @@ type DerivedKey struct {
 	Key       []byte
 }
 
-// Store is the metadata store. Implementations are safe for concurrent use.
 // NewChangeset is a changeset row with its file rows and core row.
 type NewChangeset struct {
 	Row   ChangesetRow
@@ -128,9 +127,16 @@ type Inserted struct {
 	Inserted bool
 }
 
+// Store is the metadata store. Implementations are safe for concurrent use.
 type Store interface {
 	CreateRepo(ctx context.Context, name string) (RepoID, error)
 	LookupRepo(ctx context.Context, name string) (RepoID, error)
+	// ListRepos returns every repository's name by id.
+	ListRepos(ctx context.Context) (map[RepoID]string, error)
+	// ForEachObjectRoot calls fn with every object id the repository's rows
+	// reference directly: changeset root trees and derived value_refs
+	// (object GC, M9.4). Ids may repeat.
+	ForEachObjectRoot(ctx context.Context, repo RepoID, fn func(id hash.ID, derived bool) error) error
 
 	// InsertChangeset inserts a changeset with its file rows and core row in
 	// one transaction. If the changeset already exists it returns its seq and

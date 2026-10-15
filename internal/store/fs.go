@@ -105,3 +105,42 @@ func (s *FS) Has(ctx context.Context, ids []hash.ID) ([]bool, error) {
 	}
 	return present, nil
 }
+
+// List implements Lister by walking <root>/objects.
+func (s *FS) List(ctx context.Context, fn func(ObjectInfo) error) error {
+	dir := filepath.Join(s.root, "objects")
+	err := filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			if errors.Is(err, fs.ErrNotExist) && path == dir {
+				return filepath.SkipDir // nothing stored yet
+			}
+			return err
+		}
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		if d.IsDir() {
+			return nil
+		}
+		rel, err := filepath.Rel(s.root, path)
+		if err != nil {
+			return err
+		}
+		id, ok := idFromKey(filepath.ToSlash(rel))
+		if !ok {
+			return nil // a temp file or something else
+		}
+		info, err := d.Info()
+		if errors.Is(err, fs.ErrNotExist) {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		return fn(ObjectInfo{ID: id, Size: info.Size(), ModTime: info.ModTime()})
+	})
+	if err != nil {
+		return fmt.Errorf("fs store: listing: %w", err)
+	}
+	return nil
+}

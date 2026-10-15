@@ -42,6 +42,7 @@ func Run(t *testing.T, newStore Factory) {
 		{"ConcurrentPutsDistinctIDs", testConcurrentPutsDistinctIDs},
 		{"LargeObject", testLargeObject},
 		{"CanceledContext", testCanceledContext},
+		{"List", testList},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -227,5 +228,44 @@ func testCanceledContext(t *testing.T, s store.ObjectStore) {
 	}
 	if _, err := s.Has(canceled, []hash.ID{id}); err == nil {
 		t.Error("Has with canceled context succeeded")
+	}
+}
+
+// testList checks Lister, for stores that implement it: every object put is
+// listed with its stored size and a recent modification time.
+func testList(t *testing.T, s store.ObjectStore) {
+	l, ok := s.(store.Lister)
+	if !ok {
+		t.Skip("not a store.Lister")
+	}
+	before := time.Now().Add(-time.Minute)
+	want := map[hash.ID]int{}
+	for range 3 {
+		id, stored := newObject(t, 100)
+		if err := s.Put(ctx(t), id, stored); err != nil {
+			t.Fatal(err)
+		}
+		want[id] = len(stored)
+	}
+	err := l.List(ctx(t), func(info store.ObjectInfo) error {
+		size, ok := want[info.ID]
+		if !ok {
+			return nil // another subtest's object (shared store)
+		}
+		if info.Size != int64(size) || info.ModTime.Before(before) || info.ModTime.After(time.Now().Add(time.Minute)) {
+			t.Errorf("listed %s: size %d (want %d), mod time %v", info.ID.Short(8), info.Size, size, info.ModTime)
+		}
+		delete(want, info.ID)
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(want) != 0 {
+		t.Errorf("%d objects not listed", len(want))
+	}
+	stop := errors.New("stop")
+	if err := l.List(ctx(t), func(store.ObjectInfo) error { return stop }); !errors.Is(err, stop) {
+		t.Errorf("an error from fn is not returned: %v", err)
 	}
 }

@@ -86,14 +86,14 @@ xylem/
 ├── gen/xylem/v1/             # generated Go code (committed)
 ├── cmd/
 │   ├── xy/                   # client CLI (cobra)
-│   └── xylemd/               # server | cache | daemon | import | migrate | parity | verify
+│   └── xylemd/               # server | cache | daemon | import | migrate | parity | verify | gc
 ├── internal/
 │   ├── hash/                  # ObjectID (BLAKE3-256), hex, prefix parsing
 │   ├── paths/                 # path and name validation, split/join, ordering, IsUnder
 │   ├── canon/                 # canonical primitive encodings (minimal varints, bytes, ids) for tree and changeset bodies
 │   ├── object/                # blob and tree canonical encoding, zstd framing
 │   ├── changeset/             # changeset model, canonical encoding, validation
-│   ├── store/                 # ObjectStore interface + fs, s3 and memory implementations
+│   ├── store/                 # ObjectStore interface + fs, s3 and memory implementations (+ Lister for GC)
 │   ├── meta/                  # Postgres access layer (pgx), migrations runner
 │   ├── derived/               # framework + kinds: core (roottree, graph), mainline, pathlog, blame
 │   ├── treeops/               # tree lookup, incremental tree rewrite, tree diff
@@ -110,6 +110,8 @@ xylem/
 │   ├── exporter/              # Xylem → git export pipeline (M10)
 │   ├── parity/                # git parity checks (library used by xylemd parity and tests)
 │   ├── cache/                 # tiered object cache (M8)
+│   ├── auth/                  # bearer tokens, per-RPC roles, interceptors, client token (M9)
+│   ├── gc/                    # object GC mark + dry-run report (M9); reads meta + store directly
 │   └── testutil/              # DB and store helpers, fixture builders
 ├── migrations/                # 0001_init.sql …  (embedded via embed.FS)
 ├── scripts/                   # make-fixture-repo.sh, fetch-external-fixtures.sh, genrepo/ (Go)

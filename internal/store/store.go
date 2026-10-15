@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"net/url"
 	"strings"
+	"time"
 
 	"github.com/delefrati/xylem/internal/hash"
 )
@@ -30,6 +31,31 @@ type ObjectStore interface {
 	Put(ctx context.Context, id hash.ID, stored []byte) error
 	// Has reports, for each id in order, whether the store holds it.
 	Has(ctx context.Context, ids []hash.ID) ([]bool, error)
+}
+
+// ObjectInfo describes a stored object in a listing.
+type ObjectInfo struct {
+	ID      hash.ID
+	Size    int64     // stored bytes
+	ModTime time.Time // when the store wrote it
+}
+
+// Lister is implemented by stores that can enumerate their objects (object
+// GC, M9.4).
+type Lister interface {
+	// List calls fn for every object, in no particular order, stopping at
+	// fn's first error. Keys that are not object keys are skipped.
+	List(ctx context.Context, fn func(ObjectInfo) error) error
+}
+
+// idFromKey parses an object key (see Key).
+func idFromKey(key string) (hash.ID, bool) {
+	slash := strings.LastIndexByte(key, '/')
+	id, err := hash.ParseHex(key[slash+1:])
+	if err != nil || Key(id) != key {
+		return hash.ID{}, false
+	}
+	return id, true
 }
 
 // Key returns the key of id in the fs and S3 layouts:

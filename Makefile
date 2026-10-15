@@ -53,8 +53,13 @@ lint: ## golangci-lint + buf lint
 test: ## Unit tests (no Docker)
 	go test $(GOTESTFLAGS) ./...
 
-test-integration: ## Unit + integration tests (needs make up)
-	go test $(GOTESTFLAGS) -tags integration ./...
+# Latency tests time one operation, so they run after the rest, alone (other
+# packages' tests would compete for the CPU).
+LATENCY_TESTS = ^TestCreateChangesetLatency$$
+
+test-integration: ## Unit + integration tests (needs make up); latency tests last, alone
+	go test $(GOTESTFLAGS) -tags integration -skip '$(LATENCY_TESTS)' ./...
+	go test $(GOTESTFLAGS) -tags integration -count=1 -run '$(LATENCY_TESTS)' ./internal/repo/
 
 check: ## lint + unit + integration with -race + build (needs make up)
 	$(MAKE) lint

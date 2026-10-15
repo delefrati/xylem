@@ -56,3 +56,50 @@ func nonNil(b []byte) []byte {
 	}
 	return b
 }
+
+// ListRepos implements Store.
+func (p *PG) ListRepos(ctx context.Context) (map[RepoID]string, error) {
+	rows, err := p.pool.Query(ctx, "SELECT id, name FROM repos")
+	if err != nil {
+		return nil, fmt.Errorf("listing repos: %w", err)
+	}
+	out := map[RepoID]string{}
+	var (
+		id   RepoID
+		name string
+	)
+	if _, err := pgx.ForEachRow(rows, []any{&id, &name}, func() error {
+		out[id] = name
+		return nil
+	}); err != nil {
+		return nil, fmt.Errorf("listing repos: %w", err)
+	}
+	return out, nil
+}
+
+// ForEachObjectRoot implements Store.
+func (p *PG) ForEachObjectRoot(ctx context.Context, repo RepoID, fn func(id hash.ID, derived bool) error) error {
+	for _, q := range []struct {
+		sql     string
+		derived bool
+	}{
+		{"SELECT DISTINCT root_tree FROM core_derived WHERE repo_id = $1", false},
+		{"SELECT DISTINCT value_ref FROM derived WHERE repo_id = $1 AND value_ref IS NOT NULL", true},
+	} {
+		rows, err := p.pool.Query(ctx, q.sql, repo)
+		if err != nil {
+			return fmt.Errorf("listing object roots: %w", err)
+		}
+		var b []byte
+		if _, err := pgx.ForEachRow(rows, []any{&b}, func() error {
+			id, err := toID(b)
+			if err != nil {
+				return err
+			}
+			return fn(id, q.derived)
+		}); err != nil {
+			return fmt.Errorf("listing object roots: %w", err)
+		}
+	}
+	return nil
+}

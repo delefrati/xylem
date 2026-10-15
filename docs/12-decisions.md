@@ -101,6 +101,16 @@ An implementing agent may add **Proposed** ADRs. Only a human changes them to Ac
 **Decision:** `xylemd export-git` (M10) streams native changesets into the target repo through a long-lived `git fast-import` process (shelling out, as ADR-010 does for reads). Mappings go into a new `git_exports` table, not into changesets. The branch moves only by `git update-ref` CAS. Export is deterministic (no wall clock, committer from the changeset), and it refuses to run when the git branch moved on its own (`ErrDiverged`). The importer treats exported commits as already imported. Xylem-only extras such as `rebased-from` are not exported. Alternatives considered: go-git (a second git implementation to trust), and `hash-object`/`mktree`/`commit-tree` per object (O(tree depth) processes per commit, too slow).
 **Consequences:** The export is exact, idempotent across crashes, and round-trips with the importer without duplicates. A migration runs in phases: git as the writer with `import --follow`, then a freeze, then Xylem as the writer with `export-git --follow`. Pushing to remotes stays outside Xylem. The export host needs a `git` binary.
 
+### ADR-023 — Object sweep with a re-mark and a trash prefix · Proposed
+**Context:** `xylemd gc --dry-run` (M9.4) finds unreferenced objects: trees and merged blobs from land attempts that never landed, and blobs uploaded but never committed. Deleting them is irreversible, and a sweep races with writes: a client may see an old orphan blob through `HasObjects`, skip the upload and reference it in a new `CreateChangeset` while the sweep deletes it; `CreateChangeset` may find an orphan tree already stored (`Put` skips it) while the sweep removes it.
+**Decision (proposed):** `xylemd gc --sweep` (needs a listable store):
+1. Record the highest changeset `seq` and derived row count, then mark as the dry run does. Candidates: unreferenced objects older than `--min-age` (default 7 days, at least 1 day).
+2. Re-mark from the changesets and derived rows added since step 1 and drop newly referenced candidates.
+3. Move the remaining candidates to `trash/<sweep date>/<key>` instead of deleting them (fs rename; S3 copy then delete). `xylemd gc --purge-trash --older-than 30d` deletes trash for real later.
+4. Store reads that miss under `objects/` look under `trash/` and restore the object (rare; logged and counted), which covers the race left after step 2. `CreateChangeset`'s blob check keeps failing with `FailedPrecondition` for missing blobs, so clients re-upload.
+
+**Consequences:** No object a committed changeset references can be lost: it is either kept by the re-mark or restored from trash. Space comes back only after the purge. S3 bucket versioning stays the backstop (runbook). Orphan *draft changesets* in Postgres (unbatched land attempts that lost their CAS) keep their trees reachable; collecting drafts is separate work. Until this ADR is accepted, only the dry run exists.
+
 ---
 
 <!-- Template:

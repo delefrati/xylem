@@ -149,6 +149,25 @@ func (s *S3) Has(ctx context.Context, ids []hash.ID) ([]bool, error) {
 	return present, nil
 }
 
+// List implements Lister with a recursive listing of the objects/ prefix.
+func (s *S3) List(ctx context.Context, fn func(ObjectInfo) error) error {
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel() // stops the listing goroutine if fn fails
+	for obj := range s.client.ListObjects(ctx, s.bucket, minio.ListObjectsOptions{Prefix: "objects/", Recursive: true}) {
+		if obj.Err != nil {
+			return fmt.Errorf("s3 store: listing: %w", obj.Err)
+		}
+		id, ok := idFromKey(obj.Key)
+		if !ok {
+			continue
+		}
+		if err := fn(ObjectInfo{ID: id, Size: obj.Size, ModTime: obj.LastModified}); err != nil {
+			return err
+		}
+	}
+	return ctx.Err()
+}
+
 func (s *S3) wrap(op string, id hash.ID, err error) error {
 	if isNotFound(err) {
 		return fmt.Errorf("s3 store: %s %s: %w", op, id, ErrNotFound)

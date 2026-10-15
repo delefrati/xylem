@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"sync"
+	"time"
 
 	"github.com/delefrati/xylem/internal/hash"
 )
@@ -13,11 +14,12 @@ import (
 type Mem struct {
 	mu      sync.RWMutex
 	objects map[hash.ID][]byte
+	written map[hash.ID]time.Time
 }
 
 // NewMem returns an empty in-memory store.
 func NewMem() *Mem {
-	return &Mem{objects: make(map[hash.ID][]byte)}
+	return &Mem{objects: make(map[hash.ID][]byte), written: make(map[hash.ID]time.Time)}
 }
 
 // Get implements ObjectStore.
@@ -43,6 +45,26 @@ func (m *Mem) Put(ctx context.Context, id hash.ID, stored []byte) error {
 	defer m.mu.Unlock()
 	if _, ok := m.objects[id]; !ok {
 		m.objects[id] = bytes.Clone(stored)
+		m.written[id] = time.Now()
+	}
+	return nil
+}
+
+// List implements Lister.
+func (m *Mem) List(ctx context.Context, fn func(ObjectInfo) error) error {
+	m.mu.RLock()
+	infos := make([]ObjectInfo, 0, len(m.objects))
+	for id, b := range m.objects {
+		infos = append(infos, ObjectInfo{ID: id, Size: int64(len(b)), ModTime: m.written[id]})
+	}
+	m.mu.RUnlock()
+	for _, info := range infos {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		if err := fn(info); err != nil {
+			return err
+		}
 	}
 	return nil
 }
