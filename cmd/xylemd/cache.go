@@ -105,16 +105,18 @@ func newCacheCmd(g *globalFlags) *cobra.Command {
 	return cmd
 }
 
-// tierHTTP serves /healthz, /readyz (upstream reachable) and /metrics.
-func tierHTTP(metrics *cache.Metrics, upstream *grpc.ClientConn) http.Handler {
+// tierHTTP serves /healthz, /readyz (every upstream reachable) and /metrics.
+func tierHTTP(metrics *cache.Metrics, upstreams ...*grpc.ClientConn) http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/healthz", func(w http.ResponseWriter, _ *http.Request) { _, _ = w.Write([]byte("ok\n")) })
 	mux.HandleFunc("/readyz", func(w http.ResponseWriter, r *http.Request) {
 		ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
 		defer cancel()
-		if _, err := cache.UpstreamKind(ctx, xylemv1.NewObjectServiceClient(upstream)); err != nil {
-			http.Error(w, "upstream: "+err.Error(), http.StatusServiceUnavailable)
-			return
+		for _, up := range upstreams {
+			if _, err := cache.UpstreamKind(ctx, xylemv1.NewObjectServiceClient(up)); err != nil {
+				http.Error(w, "upstream "+up.Target()+": "+err.Error(), http.StatusServiceUnavailable)
+				return
+			}
 		}
 		_, _ = w.Write([]byte("ready\n"))
 	})

@@ -10,7 +10,7 @@
 - [x] **M8.2 `xylemd cache`.** Flags `--upstream <server addr>`, `--memory-bytes`, `--disk-dir`, `--disk-bytes`. Serves `ObjectService` only; metadata RPCs return `Unimplemented`. Config validation enforces that the upstream is a server.
 - [x] **M8.3 `xylemd daemon`.** Listens on the Unix socket (per 09), upstream is a cache (or a server when `--allow-direct-upstream` is set, for dev). Implements `ObjectService` via `Tier` and **transparently proxies** `RepoService`/`WriteService` to the upstream server address (`--server`).
 - [x] **M8.4 Client support.** `server = "unix://…"` in `config.toml`. When connected to a daemon, the client may disable its local cache (`cache_max_bytes = 0`).
-- [ ] **M8.5 Metrics and health** for both tiers (09 metric names), plus `/readyz` checking the upstream.
+- [x] **M8.5 Metrics and health** for both tiers (09 metric names), plus `/readyz` checking the upstream.
 - [ ] **M8.6 Benchmarks** (`test/bench`, informational): 100 concurrent sparse clones of recent `main` revisions of `branchy` via daemon → cache → server vs direct. Record hit rates, server object reads and wall time in `progress.md`.
 
 ## Acceptance criteria

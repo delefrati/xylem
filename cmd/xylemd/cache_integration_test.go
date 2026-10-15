@@ -9,6 +9,7 @@ import (
 	"net"
 	"net/http"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -31,8 +32,9 @@ func freeAddr(t *testing.T) string {
 	return addr
 }
 
-// startCmd runs xylemd args until the test ends and waits for /healthz.
-func startCmd(t *testing.T, httpAddr string, args ...string) {
+// startCmd runs xylemd args until the test ends (or stop is called) and
+// waits for /healthz.
+func startCmd(t *testing.T, httpAddr string, args ...string) (stop func()) {
 	t.Helper()
 	ctx, cancel := context.WithCancel(context.Background())
 	root := newRootCmd()
@@ -42,16 +44,20 @@ func startCmd(t *testing.T, httpAddr string, args ...string) {
 	root.SetArgs(append(args, "--log-level", "warn"))
 	done := make(chan error, 1)
 	go func() { done <- root.ExecuteContext(ctx) }()
-	t.Cleanup(func() {
-		cancel()
-		if err := <-done; err != nil {
-			t.Errorf("xylemd %s: %v\n%s", args[0], err, out.String())
-		}
-	})
+	var once sync.Once
+	stop = func() {
+		once.Do(func() {
+			cancel()
+			if err := <-done; err != nil {
+				t.Errorf("xylemd %s: %v\n%s", args[0], err, out.String())
+			}
+		})
+	}
+	t.Cleanup(stop)
 	for range 100 {
 		if resp, err := http.Get("http://" + httpAddr + "/healthz"); err == nil { //nolint:gosec // G107: test URL
 			_ = resp.Body.Close()
-			return
+			return stop
 		}
 		select {
 		case err := <-done:
@@ -60,6 +66,7 @@ func startCmd(t *testing.T, httpAddr string, args ...string) {
 		}
 	}
 	t.Fatalf("xylemd %s did not come up", args[0])
+	return nil
 }
 
 func TestCacheCommand(t *testing.T) {

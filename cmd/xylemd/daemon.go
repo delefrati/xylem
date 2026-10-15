@@ -95,7 +95,7 @@ func newDaemonCmd(g *globalFlags) *cobra.Command {
 				return err
 			}
 			svc := cache.NewService(tier, cache.KindDaemon, log)
-			return serve(ctx, svc.NewGRPCServer(cache.Proxy(srv)...), tierHTTP(metrics, up), "unix", socket, f.httpListen, log)
+			return serve(ctx, svc.NewGRPCServer(cache.Proxy(srv)...), tierHTTP(metrics, up, srv), "unix", socket, f.httpListen, log)
 		},
 	}
 	cmd.Flags().StringVar(&socket, "socket", envOr("XYLEM_SOCKET", defaultSocket()), "Unix socket to listen on (env XYLEM_SOCKET)")

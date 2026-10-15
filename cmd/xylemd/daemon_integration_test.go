@@ -4,36 +4,61 @@ package main
 
 import (
 	"context"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
+
 	xylemv1 "github.com/delefrati/xylem/gen/xylem/v1"
 	"github.com/delefrati/xylem/internal/client"
 	"github.com/delefrati/xylem/internal/gitsource"
+	"github.com/delefrati/xylem/internal/object"
 	"github.com/delefrati/xylem/internal/parity"
 	"github.com/delefrati/xylem/internal/server/servertest"
 )
 
-// startChain runs server → xylemd cache → xylemd daemon and returns the
-// daemon's address (unix://…).
-func startChain(t *testing.T, s *servertest.Server) (daemon, cacheAddr string) {
+// chain is server → xylemd cache → xylemd daemon.
+type chain struct {
+	daemon, daemonHTTP string // unix://…, host:port
+	cacheAddr          string
+	stopCache          func()
+}
+
+func startChain(t *testing.T, s *servertest.Server) chain {
 	t.Helper()
-	cacheAddr, cacheHTTP := freeAddr(t), freeAddr(t)
-	startCmd(t, cacheHTTP, "cache", "--upstream", s.Addr, "--listen", cacheAddr, "--http-listen", cacheHTTP)
+	c := chain{cacheAddr: freeAddr(t), daemonHTTP: freeAddr(t)}
+	cacheHTTP := freeAddr(t)
+	c.stopCache = startCmd(t, cacheHTTP, "cache", "--upstream", s.Addr, "--listen", c.cacheAddr, "--http-listen", cacheHTTP)
 	sock := filepath.Join(t.TempDir(), "d.sock")
-	daemonHTTP := freeAddr(t)
-	startCmd(t, daemonHTTP, "daemon", "--upstream", cacheAddr, "--server", s.Addr, "--socket", sock,
-		"--disk-dir", t.TempDir(), "--http-listen", daemonHTTP)
-	return "unix://" + sock, cacheAddr
+	startCmd(t, c.daemonHTTP, "daemon", "--upstream", c.cacheAddr, "--server", s.Addr, "--socket", sock,
+		"--disk-dir", t.TempDir(), "--http-listen", c.daemonHTTP)
+	c.daemon = "unix://" + sock
+	return c
+}
+
+func readyz(t *testing.T, httpAddr string) int {
+	t.Helper()
+	resp, err := http.Get("http://" + httpAddr + "/readyz") //nolint:gosec // G107: test URL
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = resp.Body.Close()
+	return resp.StatusCode
 }
 
 func TestDaemonChain(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	s := servertest.Start(t, "branchy")
-	daemon, cacheAddr := startChain(t, s)
+	c := startChain(t, s)
+	daemon, cacheAddr := c.daemon, c.cacheAddr
+	if code := readyz(t, c.daemonHTTP); code != http.StatusOK {
+		t.Errorf("daemon /readyz = %d", code)
+	}
 
 	// Strict tiering: a daemon needs a cache upstream (unless told otherwise).
 	sock := filepath.Join(t.TempDir(), "x.sock")
@@ -93,5 +118,27 @@ func TestDaemonChain(t *testing.T) {
 	stats, err := w.Cache().Stats()
 	if err != nil || stats.Objects != 0 {
 		t.Errorf("no-cache workspace holds %d objects (%v)", stats.Objects, err)
+	}
+
+	// Killing the cache: the daemon is not ready, and a fetch it can't answer
+	// from its own cache fails cleanly with Unavailable.
+	c.stopCache()
+	if code := readyz(t, c.daemonHTTP); code != http.StatusServiceUnavailable {
+		t.Errorf("daemon /readyz with the cache down = %d", code)
+	}
+	unknown, data := object.Encode(object.KindBlob, []byte("never fetched before\n"))
+	if err := s.Store.Put(ctx, unknown, data); err != nil {
+		t.Fatal(err)
+	}
+	stream, err := conn.Object.GetObjects(ctx, &xylemv1.GetObjectsRequest{Ids: [][]byte{unknown[:]}})
+	if err == nil {
+		_, err = stream.Recv()
+	}
+	if status.Code(err) != codes.Unavailable {
+		t.Errorf("fetch with the cache down: %v, want Unavailable", err)
+	}
+	// History still works: the daemon proxies it to the server directly.
+	if _, err := conn.Repo.ResolveRevision(ctx, &xylemv1.ResolveRevisionRequest{Revision: "main"}); err != nil {
+		t.Errorf("ResolveRevision with the cache down: %v", err)
 	}
 }
