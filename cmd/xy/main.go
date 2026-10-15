@@ -93,9 +93,3 @@ func newCheckoutCmd(*globals) *cobra.Command {
 }
 
 func newSparseCmd(*globals) *cobra.Command { return m5("sparse", "List or change the sparse profile") }
-func newLogCmd(*globals) *cobra.Command    { return m5("log [path]", "First-parent history") }
-func newShowCmd(*globals) *cobra.Command   { return m5("show [rev]", "Changeset metadata and diff") }
-
-func newBlameCmd(*globals) *cobra.Command { return m5("blame <path>", "Line-by-line origin of a file") }
-func newCatCmd(*globals) *cobra.Command   { return m5("cat <path>", "Print a file at a revision") }
-func newLsCmd(*globals) *cobra.Command    { return m5("ls [path]", "List a directory at a revision") }

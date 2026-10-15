@@ -85,42 +85,62 @@ func under(p []byte, filter [][]byte) bool {
 }
 
 func writeFileDiff(out io.Writer, path []byte, oldMode, newMode object.Mode, oldC, newC []byte, contextLines int) error {
-	p := string(path)
+	fd := fileDiff{path: path, oldMode: gitModes[oldMode], newMode: gitModes[newMode], same: string(oldC) == string(newC)}
+	if !fd.same {
+		if fd.binary = diff.IsBinary(oldC) || diff.IsBinary(newC); !fd.binary {
+			fd.hunks = diff.Hunks(oldC, newC, contextLines)
+		}
+	}
+	return fd.write(out)
+}
+
+// fileDiff is one file's diff, printed in git's format. Modes are git octal
+// strings, empty for a missing side.
+type fileDiff struct {
+	path             []byte
+	oldMode, newMode string
+	same             bool // content unchanged (mode-only change)
+	binary           bool
+	hunks            []diff.Hunk
+}
+
+func (d fileDiff) write(out io.Writer) error {
+	p := string(d.path)
 	w := func(format string, args ...any) error { _, err := fmt.Fprintf(out, format, args...); return err }
 	if err := w("diff --xy a/%s b/%s\n", p, p); err != nil {
 		return err
 	}
 	switch {
-	case oldMode == 0:
-		if err := w("new file mode %s\n", gitModes[newMode]); err != nil {
+	case d.oldMode == "":
+		if err := w("new file mode %s\n", d.newMode); err != nil {
 			return err
 		}
-	case newMode == 0:
-		if err := w("deleted file mode %s\n", gitModes[oldMode]); err != nil {
+	case d.newMode == "":
+		if err := w("deleted file mode %s\n", d.oldMode); err != nil {
 			return err
 		}
-	case oldMode != newMode:
-		if err := w("old mode %s\nnew mode %s\n", gitModes[oldMode], gitModes[newMode]); err != nil {
+	case d.oldMode != d.newMode:
+		if err := w("old mode %s\nnew mode %s\n", d.oldMode, d.newMode); err != nil {
 			return err
 		}
 	}
-	if string(oldC) == string(newC) {
+	if d.same || !d.binary && len(d.hunks) == 0 { // mode-only, or an empty file added or deleted
 		return nil
 	}
 	from, to := "a/"+p, "b/"+p
-	if oldMode == 0 {
+	if d.oldMode == "" {
 		from = "/dev/null"
 	}
-	if newMode == 0 {
+	if d.newMode == "" {
 		to = "/dev/null"
 	}
-	if diff.IsBinary(oldC) || diff.IsBinary(newC) {
+	if d.binary {
 		return w("Binary files %s and %s differ\n", from, to)
 	}
 	if err := w("--- %s\n+++ %s\n", from, to); err != nil {
 		return err
 	}
-	for _, h := range diff.Hunks(oldC, newC, contextLines) {
+	for _, h := range d.hunks {
 		if err := w("%s\n%s", h.Header(), h.Body); err != nil {
 			return err
 		}

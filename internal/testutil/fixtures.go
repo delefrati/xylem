@@ -101,6 +101,12 @@ func CopyFixture(t testing.TB, profile string) string {
 // standard output, failing the test on error.
 func Git(t testing.TB, dir string, args ...string) string {
 	t.Helper()
+	return strings.TrimSpace(GitRaw(t, dir, args...))
+}
+
+// GitRaw is Git without trimming the output.
+func GitRaw(t testing.TB, dir string, args ...string) string {
+	t.Helper()
 	cmd := exec.Command("git", args...) //nolint:gosec // G204: tests drive git with computed arguments (ADR-010)
 	cmd.Dir = dir
 	cmd.Env = append(os.Environ(), "GIT_CONFIG_GLOBAL=/dev/null", "GIT_CONFIG_NOSYSTEM=1",
@@ -111,5 +117,5 @@ func Git(t testing.TB, dir string, args ...string) string {
 	if err != nil {
 		t.Fatalf("git %s: %v\n%s", strings.Join(args, " "), err, stderr.String())
 	}
-	return strings.TrimSpace(string(out))
+	return string(out)
 }

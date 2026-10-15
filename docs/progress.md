@@ -17,6 +17,7 @@ Maintained by the implementing agent. Newest entries first within each section.
 ## Deviations from spec
 
 <!-- - YYYY-MM-DD M2.4: <what changed, why, doc updated: 04-derived-data.md> -->
+- - M5.9: the `xy blame` line format is `<short id> (<author> <date> <line no>) <content>`, as in git; 06 lacked the opening parenthesis (doc updated).
 - 2026-10-14 M5.6: the dirstate records the root tree it describes; a dirstate whose root differs from state.json is stale and rebuilt by hashing, which makes every crash window safe (files → dirstate → state.json): status then reports the partial checkout as modifications. Scope changes reconcile the wanted file list against the dirstate instead of a tree diff (equal subtrees can change scope membership). A directory in the way of a new file is dirty only if it holds untracked or modified files. Working-tree directories are created 0755 (`//nolint:gosec` G301).
 - 2026-10-14 M5.3: the local cache uses each file's mtime as its last-access clock (stamped on every read) instead of atime, which relatime/noatime mounts do not maintain reliably; EnsureLimit walks the cache (O(objects)) and evicts to 90% of cache_max_bytes.
 - 2026-10-14 M5.2: paths in state.json (sparse, added) are JSON strings when valid UTF-8 and {"base64": …} otherwise (JSON cannot carry arbitrary bytes; ADR-015); the workspace lock is non-blocking (a second mutating xy fails fast with "workspace is locked"); hash.ID gained MarshalText/UnmarshalText (hex; not hash-affecting).
@@ -139,6 +140,7 @@ Verified on a fresh `git clone` of 3e549f4: `make tools && make up && make proto
 ## Log
 
 <!-- - YYYY-MM-DD M0.2: skeleton dirs + cobra roots (commit abc1234) -->
+- - 2026-10-14 M5.9: `xy log` (-r, -n, --oneline, path filter), `show`, `blame`, `cat` and `ls` (-R) as RPC wrappers with human and --json output. `@`/`@~N`/`@^N` resolve client-side; revisions default to `@` in a workspace, else `main`. `cat` and the others work outside a workspace with --server. Tests compare against git on tiny.
 - - 2026-10-14 M5.8: `xy status` (gitignore via go-git's matcher, nested files and negations; racy-mtime rule; parallel hashing; dirstate refresh) and `xy diff [paths]` (git-format unified diff from cached base blobs). `checkout --force` now also restores locally modified tracked files the move doesn't touch, so it recovers from an interrupted checkout. Crash simulation test passes.
 - 2026-10-14 M5.7: client.Clone + `xy clone <server> <dir> [--repo --rev --sparse a,b] [--json]` (refuses a non-empty destination with exit 2, removes the directory it created on failure); full, sparse and older-revision clones of branchy match git
 - 2026-10-14 M5.6: checkout engine — scoped tree diff (equal subtrees skipped, out-of-scope trees never read) or reconcile on scope change, dirty check (modified tracked files, untracked files and non-empty directories in the way → exit 4 unless --force), fetch, apply (deletes + empty-dir pruning, then atomic writes, 0644/0755, symlinks via rename, type changes), dirstate, state.json last; matches git on every edge first-parent revision incl. file↔symlink↔dir

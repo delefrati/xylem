@@ -14,7 +14,7 @@
 - [x] **M5.6 Checkout engine.** Diff the current and target trees (scoped), dirty check, fetch, apply (atomic writes, modes, symlinks, empty-dir cleanup), update dirstate, write state last. Handle type changes (file ↔ symlink ↔ dir) by removing before writing.
 - [x] **M5.7 `xy clone`.** Full and `--sparse`. Fails if the target dir exists and isn't empty.
 - [x] **M5.8 Status and local diff.** Walk with `.gitignore` (go-git matcher, nested files), racy-mtime rule, parallel hashing, `A`/`M`/`D`/`?`, and paths relative to the cwd. `xy diff` uses `internal/diff` on the base blob (from the cache, fetched if missing) vs the working file.
-- [ ] **M5.9 Query commands.** `log`, `show`, `blame`, `cat`, `ls`, all thin wrappers over RPCs with human and `--json` output. `@` resolves client-side.
+- [x] **M5.9 Query commands.** `log`, `show`, `blame`, `cat`, `ls`, all thin wrappers over RPCs with human and `--json` output. `@` resolves client-side.
 - [ ] **M5.10 `xy checkout <rev>` and `sparse add/remove/list`.** Sparse changes fetch newly in-scope paths or delete out-of-scope files (refuse if any are dirty).
 - [ ] **M5.11 Clone parity + e2e.** Add the Clone row of the parity suite (full and 3 random sparse profiles per fixture, compared to `git archive` extraction, including exec bits and symlink targets). Add an e2e test package `test/e2e` running real binaries against an in-process server: clone, modify, status, diff, checkout another rev, and sparse add/remove.
 

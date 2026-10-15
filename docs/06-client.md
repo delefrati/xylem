@@ -49,7 +49,7 @@ token  = ""                        # M9
 | `xy commit -m <msg>` | Upload new blobs, call `CreateChangeset(parent=@)`, move `@` to the new draft, update dirstate. Prints the short id. |
 | `xy log [path] [-r rev] [-n N]` | Server `Log`. Defaults to `@`. |
 | `xy show [rev]` | Changeset metadata plus diff vs its first parent (server `Diff`). |
-| `xy blame <path> [-r rev]` | Server `Blame`. Format: `<short id> <author> <date> <line no>) <content>`. |
+| `xy blame <path> [-r rev]` | Server `Blame`. Format: `<short id> (<author> <date> <line no>) <content>`, as in `git blame`. |
 | `xy cat <path> [-r rev]` | Server `ReadFile`. Works without a workspace when given `--server` and `--repo`. |
 | `xy ls [path] [-r rev] [-R]` | Server `ListDirectory`. |
 | `xy checkout <rev>` | Move the working copy to rev. Refuses if dirty files would be overwritten (`--force` discards). |
