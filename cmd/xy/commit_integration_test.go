@@ -51,3 +51,61 @@ func TestAddAndCommitCommands(t *testing.T) {
 		t.Errorf("commit --json: %s", out)
 	}
 }
+
+// Not parallel: the author comes from XYLEM_AUTHOR.
+func TestStackSyncLandCommands(t *testing.T) {
+	t.Setenv("XYLEM_AUTHOR", "Ada Lovelace <ada@example.com>")
+	s := servertest.Start(t, "tiny")
+	a, b := filepath.Join(t.TempDir(), "a"), filepath.Join(t.TempDir(), "b")
+	runOK(t, "clone", s.Addr, a)
+	runOK(t, "clone", s.Addr, b)
+	write := func(dir, rel, content string) {
+		t.Helper()
+		if err := os.WriteFile(filepath.Join(dir, rel), []byte(content), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if out := runOK(t, "-C", a, "stack"); out != "" {
+		t.Errorf("empty stack: %q", out)
+	}
+	write(a, "README", "a\n")
+	runOK(t, "-C", a, "commit", "-m", "a one")
+	write(a, "TODO", "a todo\n")
+	runOK(t, "-C", a, "commit", "-m", "a two")
+	out := runOK(t, "-C", a, "stack")
+	if lines := strings.Split(strings.TrimSpace(out), "\n"); len(lines) != 2 || !strings.HasSuffix(lines[0], " a two") || !strings.HasSuffix(lines[1], " a one") {
+		t.Errorf("stack: %q", out)
+	}
+	if out := runOK(t, "-C", a, "land"); !strings.HasPrefix(out, "landed 2 changesets (0 already on main); @ at ") {
+		t.Errorf("land: %q", out)
+	}
+
+	// b edits README too: sync and land both report the conflict (exit 3).
+	write(b, "README", "b\n")
+	runOK(t, "-C", b, "commit", "-m", "b one")
+	out, err := runXY("-C", b, "land")
+	if client.ExitCode(err) != client.ExitConflict || !strings.Contains(out, "content         README\n") {
+		t.Errorf("conflicting land: %q, %v", out, err)
+	}
+	out, err = runXY("-C", b, "sync", "--json")
+	if client.ExitCode(err) != client.ExitConflict || !strings.Contains(out, `"kind": "content"`) || !strings.Contains(out, `"path": "README"`) {
+		t.Errorf("conflicting sync --json: %q, %v", out, err)
+	}
+	if got, _ := os.ReadFile(filepath.Join(b, "README")); string(got) != "b\n" {
+		t.Errorf("README after the conflict: %q", got)
+	}
+
+	// A fresh workspace behind main syncs to it.
+	c := filepath.Join(t.TempDir(), "c")
+	runOK(t, "clone", s.Addr, c, "--rev", "main~1")
+	if out := runOK(t, "-C", c, "sync"); !strings.HasPrefix(out, "@ at ") || !strings.HasSuffix(out, " (main)\n") {
+		t.Errorf("sync with no drafts: %q", out)
+	}
+	if got, _ := os.ReadFile(filepath.Join(c, "TODO")); string(got) != "a todo\n" {
+		t.Errorf("TODO after sync: %q", got)
+	}
+	write(c, "README", "dirty\n")
+	if _, err := runXY("-C", c, "sync"); client.ExitCode(err) != client.ExitDirty {
+		t.Errorf("dirty sync: %v", err)
+	}
+}

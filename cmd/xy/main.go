@@ -3,7 +3,6 @@ package main
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"os"
 	"os/signal"
@@ -54,9 +53,7 @@ func newRootCmd() *cobra.Command {
 		newCloneCmd(g), newStatusCmd(g), newDiffCmd(g), newCheckoutCmd(g), newSparseCmd(g), newCacheCmd(g),
 		newLogCmd(g), newShowCmd(g), newBlameCmd(g), newCatCmd(g), newLsCmd(g),
 		newAddCmd(g), newCommitCmd(g),
-		m6("stack", "Show draft changesets between @ and the mainline"),
-		m6("sync", "Rebase or move the working copy onto main"),
-		m6("land", "Land the current stack onto main"),
+		newStackCmd(g), newSyncCmd(g), newLandCmd(g),
 	)
 	return root
 }
@@ -69,15 +66,4 @@ func args(v cobra.PositionalArgs) cobra.PositionalArgs {
 		}
 		return nil
 	}
-}
-
-func notYet(milestone string) func(*cobra.Command, []string) error {
-	return func(cmd *cobra.Command, _ []string) error {
-		return errors.New(cmd.Name() + ": not yet implemented (" + milestone + ")")
-	}
-}
-
-// m6 is a placeholder for a write-path command (07, M6).
-func m6(use, short string) *cobra.Command {
-	return &cobra.Command{Use: use, Short: short + " (M6)", RunE: notYet("M6")}
 }

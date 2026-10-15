@@ -59,6 +59,7 @@ func xy(t *testing.T, dir string, args ...string) (string, int) {
 	t.Helper()
 	cmd := exec.Command(xyBinary(t), args...) //nolint:gosec // G204: the test drives its own binary
 	cmd.Dir = dir
+	cmd.Env = append(os.Environ(), "XYLEM_AUTHOR=E2E Test <e2e@example.com>")
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout, cmd.Stderr = &stdout, &stderr
 	err := cmd.Run()
@@ -179,5 +180,50 @@ func TestWorkflow(t *testing.T) {
 	}
 	if _, code := xy(t, ws, "checkout"); code != 2 {
 		t.Errorf("checkout without a revision: exit %d", code)
+	}
+}
+
+// TestConcurrentWorkspaces is M6's e2e acceptance: two workspaces editing
+// different files both land; editing the same file, the second land exits 3
+// and leaves its workspace untouched.
+func TestConcurrentWorkspaces(t *testing.T) {
+	t.Parallel()
+	s := servertest.Start(t, "tiny")
+	tmp := t.TempDir()
+	a, b := filepath.Join(tmp, "a"), filepath.Join(tmp, "b")
+	ok(t, tmp, "clone", s.Addr, a)
+	ok(t, tmp, "clone", s.Addr, b)
+
+	write(t, filepath.Join(a, "a.txt"), "from a\n")
+	ok(t, a, "commit", "-A", "-m", "a adds a.txt")
+	write(t, filepath.Join(b, "b.txt"), "from b\n")
+	ok(t, b, "commit", "-A", "-m", "b adds b.txt")
+	ok(t, a, "land")
+	ok(t, b, "land") // rebased onto a's change
+	ok(t, a, "sync")
+	for _, dir := range []string{a, b} {
+		if read(t, filepath.Join(dir, "a.txt")) != "from a\n" || read(t, filepath.Join(dir, "b.txt")) != "from b\n" {
+			t.Errorf("%s lacks a landed change", dir)
+		}
+	}
+	if out := ok(t, a, "--server", s.Addr, "log", "--oneline", "-n", "2", "-r", "main"); !strings.Contains(out, "b adds b.txt") || !strings.Contains(out, "a adds a.txt") {
+		t.Errorf("main log:\n%s", out)
+	}
+
+	write(t, filepath.Join(a, "README"), "a's README\n")
+	ok(t, a, "commit", "-m", "a edits README")
+	write(t, filepath.Join(b, "README"), "b's README\n")
+	ok(t, b, "commit", "-m", "b edits README")
+	ok(t, a, "land")
+	before := read(t, filepath.Join(b, ".xylem", "state.json"))
+	out, code := xy(t, b, "land")
+	if code != 3 || !strings.Contains(out, "README") {
+		t.Fatalf("second land: exit %d\n%s", code, out)
+	}
+	if read(t, filepath.Join(b, "README")) != "b's README\n" || read(t, filepath.Join(b, ".xylem", "state.json")) != before {
+		t.Error("the conflicting land changed b's workspace")
+	}
+	if out := ok(t, b, "status"); out != "" {
+		t.Errorf("b status after the conflict: %q", out)
 	}
 }

@@ -31,9 +31,9 @@ func TestExitCodes(t *testing.T) {
 	if _, err := runXY("version", "extra"); client.ExitCode(err) != client.ExitUsage {
 		t.Errorf("extra args: code %d (%v)", client.ExitCode(err), err)
 	}
-	_, err := runXY("land")
-	if client.ExitCode(err) != client.ExitFailure || !strings.Contains(err.Error(), "not yet implemented (M6)") {
-		t.Errorf("land: %v", err)
+	_, err := runXY("-C", t.TempDir(), "land")
+	if client.ExitCode(err) != client.ExitFailure || !errors.Is(err, client.ErrNotWorkspace) {
+		t.Errorf("land outside a workspace: %v", err)
 	}
 	if client.ExitCode(&client.ExitError{Code: client.ExitDirty, Err: errors.New("dirty")}) != client.ExitDirty {
 		t.Error("ExitError code not propagated")

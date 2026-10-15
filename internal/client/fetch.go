@@ -132,7 +132,7 @@ func (f *Fetcher) readTree(id hash.ID) (*object.Tree, error) {
 // Ensure fetches the objects among ids that are not cached yet.
 func (f *Fetcher) Ensure(ctx context.Context, ids []hash.ID) error {
 	var n atomic.Int64
-	defer f.blobs.Add(n.Load())
+	defer func() { f.blobs.Add(n.Load()) }()
 	return f.ensure(ctx, ids, &n)
 }
 
