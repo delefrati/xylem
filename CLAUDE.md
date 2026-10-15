@@ -5,7 +5,7 @@ You are implementing **Xylem**, a server-first version control system for large 
 ## Start of every session
 
 1. Read `docs/progress.md` (where things stand, open questions, deviations).
-2. Read `docs/roadmap.md` and find the **current milestone**: the first file in `docs/milestones/` that has unchecked tasks.
+2. Read `docs/roadmap.md` and find the **current milestone**: the first milestone, in the roadmap table's order, whose file in `docs/milestones/` has unchecked tasks. (Go by the table, not by file names: `M10` sorts before `M2`.)
 3. Read that milestone file and the docs listed under "Read first". Don't read every doc every time; read what the task needs.
 4. If `docs/progress.md` has an unanswered question addressed to the human that blocks the next task, ask it and stop.
 

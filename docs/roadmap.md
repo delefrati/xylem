@@ -14,6 +14,7 @@ Milestones are sequential. Each has a task file in `docs/milestones/` with check
 | M7 | [Line-level merge](milestones/M7-line-merge.md) | M6 | 2 days | diff3 property tests |
 | M8 | [Cache tiers](milestones/M8-cache-tiers.md) | M6 | 4 days | Hit-rate benchmark |
 | M9 | [Hardening](milestones/M9-hardening.md) | M6 | 4 days | Auth, limits, land batcher |
+| M10 | [Git export](milestones/M10-git-export.md) | M6 (M9 recommended) | 4 days | `verify-export`, fsck and round trip |
 
 Total to MVP is about 3–4 weeks of focused work.
 
@@ -36,6 +37,7 @@ The agent **stops and waits** for a human at:
 | Blame or log semantics drift from git | M4 | Parity suite with exact sequences |
 | Checkout correctness (modes, symlinks, partial writes) | M5 | Clone parity, atomic writes, crash-order rules |
 | Races in land and mainline | M6 | CAS-in-transaction, 20-way concurrency test under `-race` |
+| Exported git history differs from Xylem, or diverges | M10 | `verify-export`, determinism and round-trip tests, CAS on the git branch |
 
 ## Definition of done (every task)
 

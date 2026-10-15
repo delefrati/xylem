@@ -42,7 +42,7 @@ After M7's diff3 in rebase: a `xy resolve` workflow for conflicts. The server re
 
 ## Git export mirror
 
-`xylemd export-git` creates git commits for native changesets on mainline, so git-only consumers (IDEs, external CI) keep working during migration.
+Scheduled as **M10** (`milestones/M10-git-export.md`, spec in `08-git-import.md` §Export, ADR-022). `xylemd export-git` creates git commits for native changesets on mainline, so git-only consumers (IDEs, external CI) keep working during migration. Still future after M10: two-way sync, exporting refs other than `main`, and pushing to remotes from Xylem.
 
 ## Derived data additions
 

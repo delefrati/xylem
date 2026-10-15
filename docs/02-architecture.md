@@ -22,6 +22,7 @@ flowchart LR
 |---|---|---|---|
 | Server | `xylemd server` | Authoritative. Implements `RepoService`, `WriteService` and `ObjectService`. Stateless apart from caches, so it scales horizontally. | M2–M6 |
 | Importer | `xylemd import` | Reads a git repo and writes changesets and objects. Resumable and incremental. | M3 |
+| Exporter | `xylemd export-git`, `xylemd verify-export` | Writes native changesets on `main` to a git repo as commits. Deterministic, resumable, refuses divergence. | M10 |
 | Admin tools | `xylemd migrate`, `xylemd admin init-repo\|set-ref`, `xylemd verify`, `xylemd verify-import`, `xylemd parity` | Schema migrations, repo and ref administration, integrity checks, import verification, git parity checks. | M2–M4 |
 | CLI | `xy` | Workspace management, checkout, status, commit, land, history queries. | M5–M6 |
 | Cache | `xylemd cache` | Regional object cache with the same `ObjectService` API, LRU in memory plus disk. | M8 |
@@ -105,6 +106,8 @@ xylem/
 │   ├── client/                # workspace, dirstate, fetcher, checkout, status
 │   ├── gitsource/             # git shell-out reader (rev-list, diff-tree, cat-file --batch)
 │   ├── importer/              # git → Xylem import pipeline
+│   ├── gitsink/               # git shell-out writer (fast-import, update-ref) (M10)
+│   ├── exporter/              # Xylem → git export pipeline (M10)
 │   ├── parity/                # git parity checks (library used by xylemd parity and tests)
 │   ├── cache/                 # tiered object cache (M8)
 │   └── testutil/              # DB and store helpers, fixture builders
