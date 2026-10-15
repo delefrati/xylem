@@ -148,6 +148,7 @@ Verified on a fresh `git clone` of 3e549f4: `make tools && make up && make proto
 
 <!-- - YYYY-MM-DD: CreateChangeset 10 files on 1k-file tree: p50 X ms, p99 Y ms (M2.9) -->
 
+- 2026-10-14: 1,000 concurrent lands (20 goroutines × 50, disjoint paths, each rebased from a stale base): 2.96 CAS attempts per land on average, 9.1 s under -race on local Postgres (M6.8)
 - 2026-10-14: `xy status` on an unchanged branchy checkout (289 files), after the first run: 0.9–1.2 ms (12 ms with -race); target < 200 ms (M5.8)
 - 2026-10-14: Blame RPC on branchy files (33 sampled, local, no -race): cold p50 15–46 ms (computes and stores the chain), warm p50 1.8–5.8 ms (target < 50 ms) (M4.10)
 - 2026-10-14: import external small repo spf13/cobra @adbc881 (1,106 commits, 114 merges, 1,861 blobs, 30.6 MB): 1.8 s ≈ 623 commits/s; verify-import --all 0 mismatches (50,483 files); verify 0 violations (M3)
@@ -158,6 +159,7 @@ Verified on a fresh `git clone` of 3e549f4: `make tools && make up && make proto
 ## Log
 
 <!-- - YYYY-MM-DD M0.2: skeleton dirs + cobra roots (commit abc1234) -->
+- 2026-10-14 M6.8: concurrency suite TestLandConcurrency{Disjoint,SameFile,Crash} (07 requirements 1–3, run under -race): 20×50 disjoint lands all succeed with exactly 1,000 new mainline rows and every file in the final tree; same-file races (10 rounds) land exactly one and conflict the other; a crash before the CAS leaves only the rebased orphan draft and main unchanged. Each test ends with repo.Verify (objects included). Passed 5 consecutive runs (-count=5 -race, 46 s).
 - 2026-10-14 M6.7: `xy stack` (fp walk from @ to the first on_mainline changeset, ≤ 1000, newest first), `xy sync` (no drafts → checkout main; drafts → Rebase onto main, checkout the rebased top) and `xy land` (Land, checkout the new tip). Conflicts → exit 3 with a kind/path table (or --json) and nothing moved. Fixed a client stats bug: Ensure's deferred counter read 0 (arguments evaluate at defer time), so blobs fetched during checkout weren't counted. Tests assert no refetch of cached blobs after land/sync; e2e covers M6's two-workspace scenario.
 - 2026-10-14 M6.6: WriteService Rebase (onto is a revision) and Land (target_ref default main, max_attempts ≤ 1000) adapters; conflicts (kind, base/ours/theirs blobs, conflicting_changeset) in the response body; exhaustion → Aborted. Metrics xylem_land_attempts (histogram) and xylem_land_conflicts_total. api-examples.md gains a WriteService section, verified on a scratch repo (write-demo) in the dev DB.
 - 2026-10-14 M6.5: repo.Land — per attempt: read the ref, RebaseStack the original stack onto its tip (one committer time per attempt), CAS via UpdateRef (ref, mainline rows and ref_log in one transaction), jittered backoff rand(0, min(200ms, 5ms·2^n)) on a lost CAS; conflicts in the result; all-skipped → success with no CAS; exhaustion → ErrConflict (Aborted). LandOptions.BeforeCAS is a fault-injection hook for tests.

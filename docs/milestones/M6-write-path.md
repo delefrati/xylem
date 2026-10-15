@@ -13,7 +13,7 @@
 - [x] **M6.5 `repo.Land`.** CAS loop with jittered backoff, mainline rows and ref_log in the same transaction, `max_attempts`, and metrics (`xylem_land_attempts`, `xylem_land_conflicts_total`).
 - [x] **M6.6 Rebase and Land RPCs.** Adapters returning conflicts in the response body (not as errors).
 - [x] **M6.7 Client `stack`, `sync` and `land`.** Per 06, with exit code 3 on conflicts and a printed conflict table. After a successful land or sync, check out the new top (no refetch of unchanged objects).
-- [ ] **M6.8 Concurrency suite.** The four scenarios in 07 §Concurrency test requirements, as integration tests under `-race`.
+- [x] **M6.8 Concurrency suite.** The four scenarios in 07 §Concurrency test requirements, as integration tests under `-race`.
 - [ ] **M6.9 Demo and MVP checklist.** Implement `make demo` (11). Run the MVP "done when" list from `01-overview.md` and record each item's evidence (command plus result) in `progress.md`. Update `README.md` with a 5-minute quickstart.
 
 ## Acceptance criteria (MVP)
