@@ -183,6 +183,7 @@ Verified on a fresh `git clone` of 3e549f4: `make tools && make up && make proto
 
 <!-- - YYYY-MM-DD: CreateChangeset 10 files on 1k-file tree: p50 X ms, p99 Y ms (M2.9) -->
 
+- 2026-10-14: FuzzMerge3, 5 min on 12 cores: 22.4M execs, no failures (M7.2)
 - 2026-10-14: import prometheus @6e69e84 (18,923 commits, 59,760 blobs, 2.6 GB) in process into a tmpfs FS store: 43 s ≈ 436 commits/s; the parity suite on it took 1 m 55 s (M6.9)
 - 2026-10-14: 1,000 concurrent lands (20 goroutines × 50, disjoint paths, each rebased from a stale base): 2.96 CAS attempts per land on average, 9.1 s under -race on local Postgres (M6.8)
 - 2026-10-14: `xy status` on an unchanged branchy checkout (289 files), after the first run: 0.9–1.2 ms (12 ms with -race); target < 200 ms (M5.8)
@@ -195,6 +196,7 @@ Verified on a fresh `git clone` of 3e549f4: `make tools && make up && make proto
 ## Log
 
 <!-- - YYYY-MM-DD M0.2: skeleton dirs + cobra roots (commit abc1234) -->
+- 2026-10-14 M7.2: Merge3 property tests — 2,000 random non-overlapping edit pairs on unique-line bases merge cleanly to both edits and symmetrically; 5,000 random texts satisfy Merge3(b,b,x) = Merge3(b,x,b) = Merge3(b,x,x) = x and clean merges are symmetric. FuzzMerge3 ran 5 min (22.4M execs, 351 corpus entries) with no failures.
 - 2026-10-14 M7.1: internal/merge.Merge3 (diff3 over internal/diff line scripts): non-overlapping changes from both sides apply; changes that overlap or touch conflict unless identical; merged output keeps clean parts and wraps conflicts in git-style markers (<<<<<<< ours / ======= / >>>>>>> theirs); Regions give base/ours/theirs line ranges; terminators kept (no-final-newline preserved); binary → ErrBinary.
 - 2026-10-14 M6.9: `make demo` (scripts/demo.sh: import edge into repo demo, server on :7410, clone/edit/status/diff/commit/stack/land/log/blame, sparse clone; re-runnable), `make run-server`, `make parity-external` (scripts/fetch-external-fixtures.sh pins cobra @adbc881 and prometheus @6e69e84; TestParityExternal), README quickstart (verified), 11's walkthrough updated. Diff compaction (ADR-021, Proposed) with git-compared tests; blame kind v2. TestTwentyWorkspacesLand for the MVP item. MVP checklist recorded under M6 results.
 - 2026-10-14 M6.8: concurrency suite TestLandConcurrency{Disjoint,SameFile,Crash} (07 requirements 1–3, run under -race): 20×50 disjoint lands all succeed with exactly 1,000 new mainline rows and every file in the final tree; same-file races (10 rounds) land exactly one and conflict the other; a crash before the CAS leaves only the rebased orphan draft and main unchanged. Each test ends with repo.Verify (objects included). Passed 5 consecutive runs (-count=5 -race, 46 s).
