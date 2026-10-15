@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc/codes"
@@ -11,6 +12,8 @@ import (
 
 	xylemv1 "github.com/delefrati/xylem/gen/xylem/v1"
 	"github.com/delefrati/xylem/internal/hash"
+	"github.com/delefrati/xylem/internal/object"
+	"github.com/delefrati/xylem/internal/repo"
 	"github.com/delefrati/xylem/internal/store"
 )
 
@@ -161,7 +164,104 @@ func (s *Server) HasObjects(ctx context.Context, req *xylemv1.HasObjectsRequest)
 	return &xylemv1.HasObjectsResponse{Present: present}, nil
 }
 
-// PutObjects is not available until M6 (the write path).
-func (s *Server) PutObjects(xylemv1.ObjectService_PutObjectsServer) error {
-	return status.Error(codes.Unimplemented, "PutObjects arrives with the write path (M6)") // TODO(M6): verify and store uploads
+// PutObjects implements ObjectService on the server tier (03 §Stored object
+// format): every object is decompressed and verified against its id, must be
+// a blob within the size limit (trees and changesets are only built
+// server-side), and is stored unless already present. Any invalid object
+// fails the whole call with InvalidArgument; objects stored before it stay
+// (they are valid and content-addressed).
+func (s *Server) PutObjects(stream xylemv1.ObjectService_PutObjectsServer) error {
+	ctx := stream.Context()
+	resp := &xylemv1.PutObjectsResponse{}
+	repoName := ""
+	first := true
+	for {
+		req, err := stream.Recv()
+		if errors.Is(err, io.EOF) {
+			return stream.SendAndClose(resp)
+		}
+		if err != nil {
+			return err
+		}
+		switch {
+		case first:
+			repoName, first = req.GetRepo(), false
+			if _, err := s.repo(ctx, repoName); err != nil {
+				return err
+			}
+		case req.GetRepo() != repoName && req.GetRepo() != "":
+			return status.Errorf(codes.InvalidArgument, "repo %q differs from the stream's %q", req.GetRepo(), repoName)
+		}
+		stored, present, err := s.putBatch(ctx, req.GetObjects())
+		if err != nil {
+			return err
+		}
+		resp.Stored += stored
+		resp.AlreadyPresent += present
+	}
+}
+
+// putBatch verifies one message's objects in parallel, then stores the ones
+// the store lacks.
+func (s *Server) putBatch(ctx context.Context, objs []*xylemv1.StoredObject) (stored, present uint32, err error) {
+	if len(objs) > MaxBatchIDs {
+		return 0, 0, status.Errorf(codes.InvalidArgument, "%d objects in one message, max %d", len(objs), MaxBatchIDs)
+	}
+	raw := make([][]byte, len(objs))
+	for i, o := range objs {
+		raw[i] = o.GetId()
+	}
+	ids, err := parseIDs(raw)
+	if err != nil {
+		return 0, 0, err
+	}
+	maxBlob := s.cfg.RepoOptions.MaxBlobSize
+	if maxBlob == 0 {
+		maxBlob = repo.DefaultMaxBlobSize
+	}
+	g, gctx := errgroup.WithContext(ctx)
+	g.SetLimit(readParallelism)
+	for i, o := range objs {
+		g.Go(func() error {
+			if err := gctx.Err(); err != nil {
+				return err
+			}
+			kind, body, err := object.DecodeVerify(ids[i], o.GetData())
+			switch {
+			case err != nil:
+				return status.Errorf(codes.InvalidArgument, "object %s: %v", ids[i], err)
+			case kind != object.KindBlob:
+				return status.Errorf(codes.InvalidArgument, "object %s is a %s: clients upload blobs only", ids[i], kind)
+			case uint64(len(body)) > maxBlob:
+				return status.Errorf(codes.InvalidArgument, "blob %s is %d bytes, max %d", ids[i], len(body), maxBlob)
+			}
+			return nil
+		})
+	}
+	if err := g.Wait(); err != nil {
+		return 0, 0, err
+	}
+
+	have, err := s.cfg.Objects.Has(ctx, ids)
+	if err != nil {
+		return 0, 0, err
+	}
+	seen := make(map[hash.ID]bool, len(ids))
+	g, gctx = errgroup.WithContext(ctx)
+	g.SetLimit(readParallelism)
+	for i, id := range ids {
+		if have[i] || seen[id] {
+			present++
+			continue
+		}
+		seen[id] = true
+		stored++
+		g.Go(func() error {
+			if err := s.cfg.Objects.Put(gctx, id, objs[i].GetData()); err != nil {
+				return fmt.Errorf("storing object %s: %w", id, err)
+			}
+			return nil
+		})
+	}
+	return stored, present, g.Wait()
 }

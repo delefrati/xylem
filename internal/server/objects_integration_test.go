@@ -3,6 +3,7 @@
 package server_test
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"io"
@@ -17,6 +18,7 @@ import (
 	"github.com/delefrati/xylem/internal/hash"
 	"github.com/delefrati/xylem/internal/object"
 	"github.com/delefrati/xylem/internal/repo/repotest"
+	"github.com/delefrati/xylem/internal/server"
 	"github.com/delefrati/xylem/internal/store"
 )
 
@@ -153,8 +155,80 @@ func TestObjectService(t *testing.T) {
 	if msgs, err := collect(t, stream); err != nil || len(msgs) != 0 {
 		t.Errorf("empty request: %d messages, %v", len(msgs), err)
 	}
-	put2, _ := c.Object.PutObjects(ctx)
-	if _, err := put2.CloseAndRecv(); status.Code(err) != codes.Unimplemented {
-		t.Errorf("PutObjects: %v", err)
+}
+
+func putObjects(t *testing.T, c *clients, msgs ...*xylemv1.PutObjectsRequest) (*xylemv1.PutObjectsResponse, error) {
+	t.Helper()
+	stream, err := c.Object.PutObjects(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, m := range msgs {
+		if err := stream.Send(m); err != nil {
+			break // the server failed the call; CloseAndRecv reports why
+		}
+	}
+	return stream.CloseAndRecv()
+}
+
+func storedObject(kind object.Kind, body []byte) *xylemv1.StoredObject {
+	id, data := object.Encode(kind, body)
+	return &xylemv1.StoredObject{Id: id[:], Data: data}
+}
+
+func TestPutObjects(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	env := repotest.NewEnv(t, store.NewMem())
+	c := startServerFor(t, env, func(cfg *server.Config) { cfg.RepoOptions.MaxBlobSize = 1 << 10 })
+
+	a, b := storedObject(object.KindBlob, []byte("a\n")), storedObject(object.KindBlob, []byte("b\n"))
+	resp, err := putObjects(t, c,
+		&xylemv1.PutObjectsRequest{Objects: []*xylemv1.StoredObject{a, b}},
+		&xylemv1.PutObjectsRequest{Objects: []*xylemv1.StoredObject{a}}, // repeated in a later message
+	)
+	if err != nil || resp.GetStored() != 2 || resp.GetAlreadyPresent() != 1 {
+		t.Fatalf("put = %v, %v", resp, err)
+	}
+	var id hash.ID
+	copy(id[:], a.Id)
+	if got, err := env.Objects.Get(ctx, id); err != nil || !bytes.Equal(got, a.Data) {
+		t.Fatalf("stored a: %v", err)
+	}
+	// Duplicates within one message count once as stored.
+	cc := storedObject(object.KindBlob, []byte("c\n"))
+	if resp, err := putObjects(t, c, &xylemv1.PutObjectsRequest{Objects: []*xylemv1.StoredObject{cc, cc, a}}); err != nil ||
+		resp.GetStored() != 1 || resp.GetAlreadyPresent() != 2 {
+		t.Errorf("duplicates: %v, %v", resp, err)
+	}
+	if resp, err := putObjects(t, c); err != nil || resp.GetStored() != 0 {
+		t.Errorf("empty stream: %v, %v", resp, err)
+	}
+
+	tree, err := object.EncodeTree(&object.Tree{Entries: []object.Entry{{Name: []byte("f"), Mode: object.ModeFile, ID: id, Size: 2}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	wrongID := storedObject(object.KindBlob, []byte("x"))
+	wrongID.Id = a.Id
+	for name, tc := range map[string]struct {
+		req  *xylemv1.PutObjectsRequest
+		code codes.Code
+	}{
+		"tree":          {&xylemv1.PutObjectsRequest{Objects: []*xylemv1.StoredObject{storedObject(object.KindTree, tree)}}, codes.InvalidArgument},
+		"hash mismatch": {&xylemv1.PutObjectsRequest{Objects: []*xylemv1.StoredObject{wrongID}}, codes.InvalidArgument},
+		"not zstd":      {&xylemv1.PutObjectsRequest{Objects: []*xylemv1.StoredObject{{Id: a.Id, Data: []byte("blob 2\x00a\n")}}}, codes.InvalidArgument},
+		"short id":      {&xylemv1.PutObjectsRequest{Objects: []*xylemv1.StoredObject{{Id: []byte{1}, Data: a.Data}}}, codes.InvalidArgument},
+		"too large":     {&xylemv1.PutObjectsRequest{Objects: []*xylemv1.StoredObject{storedObject(object.KindBlob, make([]byte, 2<<10))}}, codes.InvalidArgument},
+		"unknown repo":  {&xylemv1.PutObjectsRequest{Repo: "nope", Objects: []*xylemv1.StoredObject{a}}, codes.NotFound},
+	} {
+		if _, err := putObjects(t, c, tc.req); status.Code(err) != tc.code {
+			t.Errorf("%s: %v, want %v", name, err, tc.code)
+		}
+	}
+	// The rejected tree was not stored.
+	treeID := object.ID(object.KindTree, tree)
+	if has, _ := env.Objects.Has(ctx, []hash.ID{treeID}); has[0] {
+		t.Error("a rejected tree was stored")
 	}
 }

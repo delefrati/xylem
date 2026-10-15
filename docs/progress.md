@@ -4,9 +4,9 @@ Maintained by the implementing agent. Newest entries first within each section.
 
 ## Status
 
-- **Current milestone:** M5 — Client read path (complete, awaiting human review)
-- **Last checkpoint approved by human:** M4 — 2026-10-14 (M3, M2, M1, golden vectors and M0 approved 2026-10-14)
-- **Blocked on:** human review of M5
+- **Current milestone:** M6 — Write path and land
+- **Last checkpoint approved by human:** M5 — 2026-10-14 (M4, M3, M2, M1, golden vectors and M0 approved 2026-10-14)
+- **Blocked on:** —
 
 ## Open questions (for the human)
 
@@ -59,7 +59,7 @@ Maintained by the implementing agent. Newest entries first within each section.
 
 ### M5 — 2026-10-14
 
-Verified on the M5.11 commit: `make up && make check && make parity && make e2e` → exit 0.
+Approved by the human 2026-10-14. Verified on 28c0695: `make up && make check && make parity && make e2e` → exit 0.
 
 | Acceptance criterion | Evidence | Result |
 |---|---|---|
@@ -155,6 +155,7 @@ Verified on a fresh `git clone` of 3e549f4: `make tools && make up && make proto
 ## Log
 
 <!-- - YYYY-MM-DD M0.2: skeleton dirs + cobra roots (commit abc1234) -->
+- 2026-10-14 M6.1: ObjectService PutObjects (server tier): each message's objects (≤ 1024) are decompressed and verified in parallel, must be blobs within MaxBlobSize (InvalidArgument otherwise), then stored if the store lacks them; counts stored and already_present (duplicates within a message count once as stored). An invalid object fails the call; valid objects stored earlier in the stream stay.
 - 2026-10-14 M5.11: parity check `clone` (xy's client clones the tip in full and with 3 random sparse profiles; each working tree is compared with `git archive` — file set, content, exec bits, symlink targets): 100% on tiny, edge and branchy. `test/e2e` builds the real `xy` and drives clone, edit, status, diff, checkout (dirty refusal, --force), log, sparse add/remove/list and workspace-less cat against an in-process server; `make e2e` runs it, and CI runs it in the parity job.
 - 2026-10-14 M5.10: `xy checkout <rev> [--force]` (accepts `@`, so `checkout -f @` discards local changes) and `xy sparse list|add|remove <dir>...` (cwd-relative dirs). Profile changes go through the checkout engine (reconcile), so dirty files being deleted or overwritten refuse with exit 4.
 - 2026-10-14 M5.9: `xy log` (-r, -n, --oneline, path filter), `show`, `blame`, `cat` and `ls` (-R) as RPC wrappers with human and --json output. `@`/`@~N`/`@^N` resolve client-side; revisions default to `@` in a workspace, else `main`. `cat` and the others work outside a workspace with --server. Tests compare against git on tiny.

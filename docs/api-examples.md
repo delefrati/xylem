@@ -205,7 +205,19 @@ $G -d "{\"ids\":[\"$BLOB\"]}" $A xylem.v1.ObjectService/GetObjects
                  "data": "KLUv/QQAKQEAYmxvYiAyOQBlZGdlIGZpeHR1cmUKbWFpbiBtb3Zlcwp0YWlsCq09QNE=" } ] }
 ```
 
-Ids that aren't found are listed in `missing`, in the final message. `PutObjects` and every `WriteService` RPC return `Unimplemented` until the write path arrives (M6).
+Ids that aren't found are listed in `missing`, in the final message.
+
+`PutObjects` is a client stream of the same `StoredObject`s. The server verifies each object against its id and accepts **blobs only** (≤ 64 MiB), because trees and changesets are built server-side. A tree, a hash mismatch or an oversized blob fails the call with `InvalidArgument`. grpcurl reads a stream of JSON messages from stdin:
+
+```bash
+DATA=$($G -d "{\"ids\":[\"$BLOB\"]}" $A xylem.v1.ObjectService/GetObjects | jq -r '.objects[0].data')
+echo "{\"objects\":[{\"id\":\"$BLOB\",\"data\":\"$DATA\"}]}" | $G -d @ $A xylem.v1.ObjectService/PutObjects
+```
+```json
+{ "alreadyPresent": 1 }
+```
+
+Every `WriteService` RPC returns `Unimplemented` until the rest of the write path arrives (M6).
 
 ## Errors
 
