@@ -4,9 +4,9 @@ Maintained by the implementing agent. Newest entries first within each section.
 
 ## Status
 
-- **Current milestone:** M7 — Line merge
+- **Current milestone:** M7 — Line merge (complete, awaiting human review)
 - **Last checkpoint approved by human:** M6 (MVP) — 2026-10-14 (M5, M4, M3, M2, M1, golden vectors and M0 approved 2026-10-14)
-- **Blocked on:** —
+- **Blocked on:** human review of M7
 
 ## Open questions (for the human)
 
@@ -61,6 +61,24 @@ Maintained by the implementing agent. Newest entries first within each section.
 - 2026-10-14 M0.2: client CLI lives in `cmd/xy` (M0.2, binary name), not `cmd/xylem` as the layout tree said; doc updated: 02-architecture.md
 
 ## Milestone results
+
+### M7 — 2026-10-14
+
+Verified on 37601c1:
+- `make check` → exit 0.
+- `make parity` and `make e2e` → ok.
+- `go test -tags integration -race -count=5 -run TestLandConcurrency ./internal/repo/` → ok (5 consecutive runs, 52 s).
+- `go test -fuzz FuzzMerge3 -fuzztime 5m ./internal/merge/` → 22.4M execs, no failures.
+
+| Acceptance criterion | Evidence | Result |
+|---|---|---|
+| Property tests pass, plus 5 minutes of fuzzing of `Merge3` with no panics | TestMergeDisjointEdits (2,000 random disjoint edit pairs merge to both edits, symmetric) and TestMergeIdentities (5,000 cases of `Merge3(b,b,x)` = `Merge3(b,x,x)` = x, clean merges symmetric) pass; FuzzMerge3 5 min, 22.4M execs, no failures | ✅ |
+| The updated concurrency suite passes under `-race` | TestLandConcurrency{Disjoint,SameFile,SameFileRegions,Crash} ok ×5 under -race: same line → one lands and one conflicts; different regions of one file → both land, 10 rounds | ✅ |
+
+**Summary:** rebase and land merge text files line by line (diff3 in `internal/merge`), so concurrent edits to different parts of the same file both land. Only overlapping or adjacent edits conflict, reported with a region count that `xy` shows as e.g. `content (1)`. Symlinks, binaries and files over `--merge-max-bytes` (default 8 MiB) still conflict as whole files. Metrics: `xylem_merge_clean_total` and `xylem_merge_conflict_total`. Worth a look:
+- Adjacent edits (no unchanged line between them) conflict, as in git.
+- A failed merge's output already has git-style conflict markers, ready for a future `xy resolve` (13).
+- Adding the same file on both sides merges against an empty base, so it conflicts unless identical.
 
 ### M6 — 2026-10-14 (MVP)
 
