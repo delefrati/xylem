@@ -4,9 +4,9 @@ Maintained by the implementing agent. Newest entries first within each section.
 
 ## Status
 
-- **Current milestone:** M6 — Write path and land (complete, ⛔ MVP checkpoint: awaiting human review)
-- **Last checkpoint approved by human:** M5 — 2026-10-14 (M4, M3, M2, M1, golden vectors and M0 approved 2026-10-14)
-- **Blocked on:** human review of M6 / the MVP
+- **Current milestone:** M7 — Line merge
+- **Last checkpoint approved by human:** M6 (MVP) — 2026-10-14 (M5, M4, M3, M2, M1, golden vectors and M0 approved 2026-10-14)
+- **Blocked on:** —
 
 ## Open questions (for the human)
 
@@ -64,7 +64,7 @@ Maintained by the implementing agent. Newest entries first within each section.
 
 ### M6 — 2026-10-14 (MVP)
 
-Verified on the M6.9 commit:
+Approved by the human 2026-10-14 (MVP accepted with ≥ 98% blame parity on real repos, Q-004). Verified on the M6.9 commit:
 - `make up && make check && make parity && make e2e` → exit 0.
 - `go test -tags integration -race -count=5 -run TestLandConcurrency ./internal/repo/...` → ok (5 consecutive runs, 44 s).
 - `make demo` → ok, and re-runnable.
@@ -195,6 +195,7 @@ Verified on a fresh `git clone` of 3e549f4: `make tools && make up && make proto
 ## Log
 
 <!-- - YYYY-MM-DD M0.2: skeleton dirs + cobra roots (commit abc1234) -->
+- 2026-10-14 M7.1: internal/merge.Merge3 (diff3 over internal/diff line scripts): non-overlapping changes from both sides apply; changes that overlap or touch conflict unless identical; merged output keeps clean parts and wraps conflicts in git-style markers (<<<<<<< ours / ======= / >>>>>>> theirs); Regions give base/ours/theirs line ranges; terminators kept (no-final-newline preserved); binary → ErrBinary.
 - 2026-10-14 M6.9: `make demo` (scripts/demo.sh: import edge into repo demo, server on :7410, clone/edit/status/diff/commit/stack/land/log/blame, sparse clone; re-runnable), `make run-server`, `make parity-external` (scripts/fetch-external-fixtures.sh pins cobra @adbc881 and prometheus @6e69e84; TestParityExternal), README quickstart (verified), 11's walkthrough updated. Diff compaction (ADR-021, Proposed) with git-compared tests; blame kind v2. TestTwentyWorkspacesLand for the MVP item. MVP checklist recorded under M6 results.
 - 2026-10-14 M6.8: concurrency suite TestLandConcurrency{Disjoint,SameFile,Crash} (07 requirements 1–3, run under -race): 20×50 disjoint lands all succeed with exactly 1,000 new mainline rows and every file in the final tree; same-file races (10 rounds) land exactly one and conflict the other; a crash before the CAS leaves only the rebased orphan draft and main unchanged. Each test ends with repo.Verify (objects included). Passed 5 consecutive runs (-count=5 -race, 46 s).
 - 2026-10-14 M6.7: `xy stack` (fp walk from @ to the first on_mainline changeset, ≤ 1000, newest first), `xy sync` (no drafts → checkout main; drafts → Rebase onto main, checkout the rebased top) and `xy land` (Land, checkout the new tip). Conflicts → exit 3 with a kind/path table (or --json) and nothing moved. Fixed a client stats bug: Ensure's deferred counter read 0 (arguments evaluate at defer time), so blobs fetched during checkout weren't counted. Tests assert no refetch of cached blobs after land/sync; e2e covers M6's two-workspace scenario.
