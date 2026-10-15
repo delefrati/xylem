@@ -1,7 +1,7 @@
 version: "2"
 
 run:
-  build-tags: [integration, e2e, parity]
+  build-tags: [integration, e2e, parity, bench]
 
 linters:
   enable:

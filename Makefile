@@ -45,7 +45,7 @@ build: ## Build bin/xy and bin/xylemd
 
 ## ---- quality
 
-.PHONY: lint test test-integration check fuzz bench
+.PHONY: lint test test-integration check fuzz bench bench-tiers
 lint: ## golangci-lint + buf lint
 	golangci-lint run
 	buf lint
@@ -68,6 +68,9 @@ fuzz: ## Run every Fuzz* target for FUZZTIME (default 30s)
 			go test -run '^$$' -fuzz "^$$fn$$" -fuzztime $(FUZZTIME) $$pkg; \
 		done; \
 	done
+
+bench-tiers: ## M8.6 tier benchmark (informational): 100 sparse clones via daemon → cache → server vs direct (needs make up)
+	go test -tags bench -count=1 -timeout 20m -v -run TestTierBenchmark ./test/bench/...
 
 bench: ## Go benchmarks; integration ones too when services are up
 	@tags=; if [ -n "$$($(COMPOSE) ps -q --status running postgres 2>/dev/null)" ]; then tags="-tags integration"; fi; \
