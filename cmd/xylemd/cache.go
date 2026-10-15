@@ -16,6 +16,7 @@ import (
 	xylemv1 "github.com/delefrati/xylem/gen/xylem/v1"
 	"github.com/delefrati/xylem/internal/auth"
 	"github.com/delefrati/xylem/internal/cache"
+	"github.com/delefrati/xylem/internal/tracing"
 )
 
 // upstreamCheckTimeout bounds the startup check of a tier's upstream.
@@ -70,6 +71,7 @@ func dialUpstream(ctx context.Context, addr, want, token string) (*grpc.ClientCo
 	opts := append([]grpc.DialOption{
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 		grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(cache.MaxMessageSize), grpc.MaxCallSendMsgSize(cache.MaxMessageSize)),
+		tracing.DialOption(),
 	}, auth.DialOptions(token)...)
 	cc, err := grpc.NewClient(addr, opts...)
 	if err != nil {
@@ -116,6 +118,11 @@ func newCacheCmd(g *globalFlags) *cobra.Command {
 			if err != nil {
 				return err
 			}
+			stopTracing, err := g.startTracing(ctx, "xylemd-cache")
+			if err != nil {
+				return err
+			}
+			defer stopTracing()
 			up, err := dialUpstream(ctx, f.upstream, cache.KindServer, f.upstreamToken())
 			if err != nil {
 				return err

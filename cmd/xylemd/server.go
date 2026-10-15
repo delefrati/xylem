@@ -41,6 +41,11 @@ func newServerCmd(g *globalFlags) *cobra.Command {
 			if err != nil {
 				return err
 			}
+			stopTracing, err := g.startTracing(ctx, "xylemd-server")
+			if err != nil {
+				return err
+			}
+			defer stopTracing()
 			tokens, err := loadTokens(authTokens, log)
 			if err != nil {
 				return err

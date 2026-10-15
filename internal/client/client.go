@@ -16,6 +16,7 @@ import (
 
 	xylemv1 "github.com/delefrati/xylem/gen/xylem/v1"
 	"github.com/delefrati/xylem/internal/auth"
+	"github.com/delefrati/xylem/internal/tracing"
 )
 
 // Exit codes (06 §Commands).
@@ -75,6 +76,7 @@ func Dial(addr, token string) (*Conn, error) {
 	opts := append([]grpc.DialOption{
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 		grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(maxMessageSize), grpc.MaxCallSendMsgSize(maxMessageSize)),
+		tracing.DialOption(),
 	}, auth.DialOptions(token)...)
 	cc, err := grpc.NewClient(addr, opts...)
 	if err != nil {

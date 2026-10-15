@@ -10,10 +10,14 @@ import (
 	"sync/atomic"
 	"time"
 
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
+
 	xylemv1 "github.com/delefrati/xylem/gen/xylem/v1"
 	"github.com/delefrati/xylem/internal/hash"
 	"github.com/delefrati/xylem/internal/object"
 	"github.com/delefrati/xylem/internal/store"
+	"github.com/delefrati/xylem/internal/tracing"
 )
 
 // Defaults (09 §Caching tiers).
@@ -90,6 +94,9 @@ type batch struct {
 	ids     []hash.ID
 	flights map[hash.ID]*flight
 	sent    bool
+	// trace is the span of the call that opened the batch: the upstream
+	// fetch joins that call's trace (M9.5).
+	trace trace.SpanContext
 }
 
 // NewTier returns a Tier.
@@ -165,7 +172,7 @@ func (t *Tier) Get(ctx context.Context, repo string, ids []hash.ID) (map[hash.ID
 			hits++
 			continue
 		}
-		waits[id] = t.join(repo, id)
+		waits[id] = t.join(ctx, repo, id)
 	}
 	if o := t.cfg.Observe; o != nil {
 		o.Hit(hits)
@@ -188,7 +195,7 @@ func (t *Tier) Get(ctx context.Context, repo string, ids []hash.ID) (map[hash.ID
 }
 
 // join returns the flight fetching (repo, id), queuing a new one if none.
-func (t *Tier) join(repo string, id hash.ID) *flight {
+func (t *Tier) join(ctx context.Context, repo string, id hash.ID) *flight {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	key := flightKey{repo, id}
@@ -199,7 +206,7 @@ func (t *Tier) join(repo string, id hash.ID) *flight {
 	t.flights[key] = f
 	b := t.pending[repo]
 	if b == nil {
-		b = &batch{repo: repo, flights: map[hash.ID]*flight{}}
+		b = &batch{repo: repo, flights: map[hash.ID]*flight{}, trace: trace.SpanContextFromContext(ctx)}
 		t.pending[repo] = b
 		time.AfterFunc(t.cfg.BatchWindow, func() { t.send(b) })
 	}
@@ -208,7 +215,7 @@ func (t *Tier) join(repo string, id hash.ID) *flight {
 	if len(b.ids) >= t.cfg.MaxBatch {
 		delete(t.pending, repo)
 		b.sent = true
-		go t.fetch(b)
+		go t.fetch(b) //nolint:gosec // G118: the batch serves every caller that joins it, so it must not die with ctx
 	}
 	return f
 }
@@ -262,7 +269,12 @@ func (t *Tier) acquire(ctx context.Context) (release func(), err error) {
 // fetch gets a batch from upstream, verifies and caches each object, and
 // completes the flights. Ids upstream does not mention count as missing.
 func (t *Tier) fetch(b *batch) {
-	ctx, cancel := context.WithTimeout(context.Background(), upstreamTimeout)
+	// The batch serves every caller that joined it; it runs on none of their
+	// contexts, but continues the trace of the first.
+	ctx, span := tracing.Tracer().Start(trace.ContextWithSpanContext(context.Background(), b.trace), "cache.fetch",
+		trace.WithAttributes(attribute.Int("xylem.ids", len(b.ids)), attribute.String("xylem.repo", b.repo)))
+	defer span.End()
+	ctx, cancel := context.WithTimeout(ctx, upstreamTimeout)
 	defer cancel()
 	fail := func(err error) {
 		for id, f := range b.flights {

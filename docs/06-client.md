@@ -110,6 +110,10 @@ There is no local commit and nothing to push. A draft exists on the server the m
 
 The stack is the fp chain from `@` down to (excluding) the first changeset with `on_mainline = true`. Fetch it via `GetChangesets` in batches, following `parents[0]`. Cap at 1,000 entries.
 
+## Tracing
+
+With `XYLEM_OTLP_ENDPOINT` set (`http://localhost:4317` for a local collector), `xy` sends an OpenTelemetry trace per command: a root span `xy <command>` with every RPC below it, continued by the daemon, cache and server when they trace too (M9.5, ADR-024).
+
 ## Token
 
 Sent as `authorization: Bearer <token>` on every call. Look up in order: `XYLEM_TOKEN` env, `token` in `.xylem/config.toml`, then a top-level `token` in `~/.config/xylem/config.toml`. Empty means none (a server without `--auth-tokens`). `xy clone` uses the env or user config and does not save the token in the new workspace. `config.toml` is written 0600.

@@ -10,7 +10,7 @@
 - [x] **M9.2 Rate limits.** Per-identity token buckets for expensive RPCs (Blame, Log with path, Diff with hunks, MergeBase), configurable, returning `ResourceExhausted` with a retry-after in trailing metadata.
 - [x] **M9.3 Land batcher.** Per (repo, ref) collector per 07, behind a flag `--land-batch-window` (default 0 = off). Benchmark land throughput with 50 concurrent landers, with the batcher on vs off.
 - [x] **M9.4 Object GC (dry-run).** `xylemd gc --dry-run`: mark all objects reachable from changeset trees and derived `value_ref`s, then list unreferenced objects older than 7 days with their total bytes. The sweep is deferred until a human approves an ADR.
-- [ ] **M9.5 Tracing.** OpenTelemetry spans across client → daemon → cache → server (OTLP exporter, off by default).
+- [x] **M9.5 Tracing.** OpenTelemetry spans across client → daemon → cache → server (OTLP exporter, off by default).
 - [ ] **M9.6 Runbook.** `docs/runbook.md`: deploy topology, config, backups (`pg_dump` + bucket versioning), restore drill, alerts on the key metrics, and how to use `verify`.
 
 ## Acceptance criteria

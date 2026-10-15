@@ -22,6 +22,7 @@ import (
 	"github.com/delefrati/xylem/internal/meta"
 	"github.com/delefrati/xylem/internal/repo"
 	"github.com/delefrati/xylem/internal/store"
+	"github.com/delefrati/xylem/internal/tracing"
 )
 
 // DefaultRepo is the repository used when a request leaves repo empty.
@@ -120,6 +121,7 @@ func (s *Server) NewGRPCServer(opts ...grpc.ServerOption) *grpc.Server {
 		grpc.MaxSendMsgSize(MaxMessageSize),
 		grpc.ChainUnaryInterceptor(s.unaryInterceptor),
 		grpc.ChainStreamInterceptor(s.streamInterceptor),
+		tracing.ServerOption(),
 	}, opts...)
 	g := grpc.NewServer(opts...)
 	xylemv1.RegisterRepoServiceServer(g, s)

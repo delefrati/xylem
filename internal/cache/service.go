@@ -17,6 +17,7 @@ import (
 	xylemv1 "github.com/delefrati/xylem/gen/xylem/v1"
 	"github.com/delefrati/xylem/internal/auth"
 	"github.com/delefrati/xylem/internal/hash"
+	"github.com/delefrati/xylem/internal/tracing"
 )
 
 // TierHeader names the tier that answered a call, in response headers and
@@ -256,7 +257,7 @@ func (s *Service) Interceptors() []grpc.ServerOption {
 // NewGRPCServer returns a gRPC server with the tier's ObjectService; extra
 // options add, for example, the daemon's Proxy.
 func (s *Service) NewGRPCServer(extra ...grpc.ServerOption) *grpc.Server {
-	g := grpc.NewServer(append(s.Interceptors(), extra...)...)
+	g := grpc.NewServer(append(append(s.Interceptors(), tracing.ServerOption()), extra...)...)
 	xylemv1.RegisterObjectServiceServer(g, s)
 	return g
 }

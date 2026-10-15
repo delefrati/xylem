@@ -69,3 +69,19 @@ func TestCacheCommands(t *testing.T) {
 		t.Error("cache stats outside a workspace succeeded")
 	}
 }
+
+func TestCommandName(t *testing.T) {
+	t.Parallel()
+	for args, want := range map[string]string{
+		"":                              "",
+		"status":                        "status",
+		"-C /tmp/ws log -n 3":           "log",
+		"--server localhost:7400 clone": "clone",
+		"--json land":                   "land",
+		"--repo=x blame f":              "blame",
+	} {
+		if got := commandName(strings.Fields(args)); got != want {
+			t.Errorf("commandName(%q) = %q, want %q", args, got, want)
+		}
+	}
+}

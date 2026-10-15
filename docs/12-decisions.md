@@ -111,6 +111,11 @@ An implementing agent may add **Proposed** ADRs. Only a human changes them to Ac
 
 **Consequences:** No object a committed changeset references can be lost: it is either kept by the re-mark or restored from trash. Space comes back only after the purge. S3 bucket versioning stays the backstop (runbook). Orphan *draft changesets* in Postgres (unbatched land attempts that lost their CAS) keep their trees reachable; collecting drafts is separate work. Until this ADR is accepted, only the dry run exists.
 
+### ADR-024 — OpenTelemetry for tracing · Proposed
+**Context:** M9.5 asks for spans across client → daemon → cache → server with an OTLP exporter. Nothing in the approved stack does tracing.
+**Decision (proposed):** Add the OpenTelemetry Go API and SDK (`go.opentelemetry.io/otel`, `…/otel/sdk`, v1.47), the OTLP/gRPC trace exporter (`…/exporters/otlp/otlptrace/otlptracegrpc`) and the gRPC instrumentation (`go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc`, v0.72). `internal/tracing` installs a stats handler on every gRPC server and client (W3C trace context in metadata). Tracing is off unless `--otlp-endpoint` (xylemd server, cache, daemon) or `XYLEM_OTLP_ENDPOINT` (xy) is set; while off, the global no-op provider makes the handlers nearly free. A tier's batched upstream fetch continues the trace of the call that opened the batch (`cache.fetch` span); callers that join a batch later are not linked to it. Alternatives: hand-rolled spans in our interceptors with a custom exporter (reinvents OTLP), or no tracing (logs carry request ids already, but not across tiers).
+**Consequences:** About a dozen new modules in go.sum (otel was already an indirect dependency through gRPC); gRPC itself is unchanged (v1.84). One trace shows where a slow `xy` command spends its time across tiers. Removing tracing means deleting `internal/tracing` and its call sites.
+
 ---
 
 <!-- Template:

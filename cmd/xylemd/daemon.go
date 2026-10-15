@@ -68,6 +68,11 @@ func newDaemonCmd(g *globalFlags) *cobra.Command {
 			if err != nil {
 				return err
 			}
+			stopTracing, err := g.startTracing(ctx, "xylemd-daemon")
+			if err != nil {
+				return err
+			}
+			defer stopTracing()
 			if serverAddr == "" {
 				return errors.New("--server is required (where RepoService and WriteService calls go)")
 			}

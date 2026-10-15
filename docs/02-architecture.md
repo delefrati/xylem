@@ -112,6 +112,7 @@ xylem/
 │   ├── cache/                 # tiered object cache (M8)
 │   ├── auth/                  # bearer tokens, per-RPC roles, interceptors, client token (M9)
 │   ├── gc/                    # object GC mark + dry-run report (M9); reads meta + store directly
+│   ├── tracing/               # OpenTelemetry setup and gRPC instrumentation (M9)
 │   └── testutil/              # DB and store helpers, fixture builders
 ├── migrations/                # 0001_init.sql …  (embedded via embed.FS)
 ├── scripts/                   # make-fixture-repo.sh, fetch-external-fixtures.sh, genrepo/ (Go)
@@ -143,6 +144,7 @@ Rules:
 | Config | Flags + env vars (server); TOML via `github.com/BurntSushi/toml` (workspace) | |
 | Logging | `log/slog` (JSON in server, text in CLI) | |
 | Metrics | `github.com/prometheus/client_golang` on `:7401/metrics` | |
+| Tracing | OpenTelemetry (`go.opentelemetry.io/otel` SDK, OTLP/gRPC exporter, `otelgrpc`), off by default | ADR-024 (Proposed) |
 | In-memory LRU | `github.com/hashicorp/golang-lru/v2` | |
 | Duplicate suppression, errgroup | `golang.org/x/sync` (`singleflight`, `errgroup`) | |
 | gitignore | `github.com/go-git/go-git/v5/plumbing/format/gitignore` (matcher only) | ADR-016 |

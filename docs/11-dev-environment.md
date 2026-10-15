@@ -89,6 +89,7 @@ volumes: { pgdata: {}, miniodata: {} }
 | `--land-batch-window` | `XYLEM_LAND_BATCH_WINDOW` | `0` (off) | land batcher (M9.3, 07 §Contention mitigation), e.g. `20ms` |
 | `--rate-limits` | `XYLEM_RATE_LIMITS` | `off` | per-caller token buckets (M9.2): `recommended` (`Blame=5:20,Diff=10:40,Log=10:40,MergeBase=20:80`) or a list of `RPC=rate/s:burst` |
 | `--log-level` | `XYLEM_LOG_LEVEL` | `info` | |
+| `--otlp-endpoint` | `XYLEM_OTLP_ENDPOINT` | empty (off) | OpenTelemetry traces over OTLP/gRPC (M9.5): `host:port` (TLS) or `http://host:port` (plain); also on `cache` and `daemon`. `xy` reads the same env var and traces each command as one span |
 | `--auth-tokens` | `XYLEM_AUTH_TOKENS` | empty (auth off) | tokens file, see below (M9.1) |
 
 ### Cache tier (`xylemd cache`, M8)
