@@ -27,16 +27,29 @@ func RequestID(ctx context.Context) string {
 }
 
 type rpcMetrics struct {
-	duration *prometheus.HistogramVec
+	duration      *prometheus.HistogramVec
+	landAttempts  prometheus.Histogram
+	landConflicts prometheus.Counter
 }
 
 func newRPCMetrics(reg prometheus.Registerer) *rpcMetrics {
-	m := &rpcMetrics{duration: prometheus.NewHistogramVec(prometheus.HistogramOpts{
-		Name:    "xylem_rpc_duration_seconds",
-		Help:    "RPC latency by method and status code.",
-		Buckets: prometheus.ExponentialBuckets(0.0005, 2, 16), // 0.5 ms .. ~16 s
-	}, []string{"method", "code"})}
-	reg.MustRegister(m.duration)
+	m := &rpcMetrics{
+		duration: prometheus.NewHistogramVec(prometheus.HistogramOpts{
+			Name:    "xylem_rpc_duration_seconds",
+			Help:    "RPC latency by method and status code.",
+			Buckets: prometheus.ExponentialBuckets(0.0005, 2, 16), // 0.5 ms .. ~16 s
+		}, []string{"method", "code"}),
+		landAttempts: prometheus.NewHistogram(prometheus.HistogramOpts{
+			Name:    "xylem_land_attempts",
+			Help:    "CAS attempts per completed Land (successful or conflicting).",
+			Buckets: []float64{1, 2, 3, 5, 10, 20, 50, 100, 1000},
+		}),
+		landConflicts: prometheus.NewCounter(prometheus.CounterOpts{
+			Name: "xylem_land_conflicts_total",
+			Help: "Lands rejected with file-level conflicts.",
+		}),
+	}
+	reg.MustRegister(m.duration, m.landAttempts, m.landConflicts)
 	return m
 }
 

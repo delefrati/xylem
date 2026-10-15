@@ -1,6 +1,6 @@
 # API examples (grpcurl)
 
-Working `grpcurl` calls for every read RPC, against the `edge` fixture imported as the `default` repository. The outputs below are real, trimmed with `…`.
+Working `grpcurl` calls for every RPC. Read RPCs run against the `edge` fixture imported as the `default` repository; write RPCs run against a scratch repository. The outputs below are real, trimmed with `…`.
 
 ## Setup
 
@@ -217,7 +217,64 @@ echo "{\"objects\":[{\"id\":\"$BLOB\",\"data\":\"$DATA\"}]}" | $G -d @ $A xylem.
 { "alreadyPresent": 1 }
 ```
 
-`WriteService.CreateChangeset` is available; `Rebase` and `Land` return `Unimplemented` until M6.6. (Write examples are added with them.)
+## WriteService
+
+These run against a scratch repository, so `main` of `default` doesn't move. `xylemd admin init-repo` creates a repo whose `main` is an empty root changeset. The object store is shared by all repositories, so changes can reference blobs that already exist (here, from the `edge` import). New content is uploaded first with `PutObjects`.
+
+```bash
+bin/xylemd admin init-repo write-demo
+ROOT=$($G -d '{"repo":"write-demo","revision":"main"}' $A xylem.v1.RepoService/ResolveRevision | jq -r .id)
+AUTHOR='{"nameEmail":"'$(b64 'Ada <ada@example.com>')'","time":"2026-10-14T12:00:00Z"}'
+put() { echo "{\"path\":\"$(b64 "$1")\",\"op\":\"OP_PUT\",\"mode\":\"FILE_MODE_FILE\",\"size\":\"$3\",\"blobId\":\"$2\"}"; }
+```
+
+### CreateChangeset
+
+Creates a draft. The server builds the trees and sets the committer (the author, at the server's clock, until M9 adds authentication). Changes may come in any order. Signature times must be whole seconds.
+
+```bash
+X1=$($G -d "{\"repo\":\"write-demo\",\"parents\":[\"$ROOT\"],\"author\":$AUTHOR,\"message\":\"$(b64 'add README')\",
+  \"changes\":[$(put README 2DzVgHD3J5kz/wWOTqDb60GqjKSVaSjZa24lQoja5OQ= 29)]}" \
+  $A xylem.v1.WriteService/CreateChangeset | jq -r .changeset.id)
+```
+```json
+{ "changeset": { "id": "afOJeyVUBTSqss9nhmY0ue6hw/Ew5tQ/fPy0Nl9F0zs=", "parents": [ "IbYiRUPP+30e/lrMnkkZETTobsVRzx1LUKiok7gvZXg=" ],
+  "generation": "2", "changeCount": 1, "rootTree": "bge4CitH2eWycHOtL4WVBPuegvfRQavniE4dohGPDAo=", … } }
+```
+
+Sending the same request again returns the same changeset with `alreadyExisted: true`. A blob the store lacks fails the call with `FailedPrecondition` (`1 missing blobs: 0000…`), listing up to 20 ids.
+
+### Land
+
+Rebases the stack (bottom → top) onto the target ref (default `main`) and moves the ref with a compare-and-swap, retrying up to `max_attempts` (default 10) if the tip moves. X1 is already based on `main`'s tip, so it lands as is:
+
+```bash
+$G -d "{\"repo\":\"write-demo\",\"stack\":[\"$X1\"]}" $A xylem.v1.WriteService/Land
+```
+```json
+{ "landed": [ "afOJeyVUBTSqss9nhmY0ue6hw/Ew5tQ/fPy0Nl9F0zs=" ], "newTip": "afOJeyVUBTSqss9nhmY0ue6hw/Ew5tQ/fPy0Nl9F0zs=", "attempts": 1 }
+```
+
+Conflicts are file-level and come back in the response, not as an error. Nothing lands. X3 also adds `README` on the root, with different content:
+
+```json
+{ "conflicts": [ { "path": "UkVBRE1F", "kind": "KIND_ADD_ADD",
+                   "oursBlob": "2DzVgHD3…", "theirsBlob": "G1ngkRGC…" } ],
+  "conflictingChangeset": "f6tPsDPQkipwY79F99eYuTSNcjAcFZZXcrZ1PHGhyL0=", "attempts": 1 }
+```
+
+`ours` is the target side and `theirs` the stack's. Kinds are `CONTENT`, `DELETE_MODIFY`, `ADD_ADD`, `FILE_DIRECTORY` and `MODE`. Stack entries whose changes are already on the target are listed in `skipped`. Running out of attempts is `Aborted`. The `xylem_land_attempts` histogram and the `xylem_land_conflicts_total` counter are on `/metrics`.
+
+### Rebase
+
+The same rebase without moving any ref. Rebased changesets carry the extra `rebased-from` (the original id in hex):
+
+```bash
+$G -d "{\"repo\":\"write-demo\",\"stack\":[\"$X2\"],\"onto\":\"main\"}" $A xylem.v1.WriteService/Rebase
+```
+```json
+{ "rebased": [ "3boyQ5UP/itETFv42skYAsJfYahQ0qf56bCWqg/NZNA=" ] }
+```
 
 ## Errors
 

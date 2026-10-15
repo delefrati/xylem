@@ -8,12 +8,16 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/prometheus/client_golang/prometheus"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	xylemv1 "github.com/delefrati/xylem/gen/xylem/v1"
 	"github.com/delefrati/xylem/internal/object"
+	"github.com/delefrati/xylem/internal/repo/repotest"
+	"github.com/delefrati/xylem/internal/server"
+	"github.com/delefrati/xylem/internal/store"
 )
 
 var author = &xylemv1.Signature{NameEmail: []byte("Ada <ada@example.com>"), Time: timestamppb.New(timestamppb.Now().AsTime().Truncate(1e9)), TzOffsetMinutes: 60}
@@ -112,5 +116,137 @@ func TestCreateChangesetRPC(t *testing.T) {
 	_, err = c.Write.CreateChangeset(ctx, &xylemv1.CreateChangesetRequest{Parents: parents, Author: author, Changes: missingBlobs})
 	if n := strings.Count(status.Convert(err).Message(), ", ") + 1; n != 20 {
 		t.Errorf("missing blobs message lists %d ids: %v", n, err)
+	}
+}
+
+// metricValue returns a counter's value or a histogram's sample count.
+func metricValue(t *testing.T, reg *prometheus.Registry, name string) float64 {
+	t.Helper()
+	families, err := reg.Gather()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, f := range families {
+		if f.GetName() != name {
+			continue
+		}
+		m := f.GetMetric()[0]
+		if h := m.GetHistogram(); h != nil {
+			return float64(h.GetSampleCount())
+		}
+		return m.GetCounter().GetValue()
+	}
+	return 0
+}
+
+func TestRebaseAndLandRPCs(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	reg := prometheus.NewRegistry()
+	c := startServerFor(t, repotest.NewEnv(t, store.NewMem()), func(cfg *server.Config) { cfg.Registry = reg })
+	create := func(parent []byte, msg string, changes ...*xylemv1.FileChange) []byte {
+		t.Helper()
+		req := &xylemv1.CreateChangesetRequest{Author: author, Message: []byte(msg), Changes: changes}
+		if parent != nil {
+			req.Parents = [][]byte{parent}
+		}
+		resp, err := c.Write.CreateChangeset(ctx, req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return resp.GetChangeset().GetId()
+	}
+	root := create(nil, "root", uploadBlob(t, c, "README", "r\n"), uploadBlob(t, c, "a.txt", "a\n"))
+	if _, err := c.Repo.UpdateRef(ctx, &xylemv1.UpdateRefRequest{Name: "main", NewId: root}); err != nil {
+		t.Fatal(err)
+	}
+	m1 := create(root, "m1", uploadBlob(t, c, "README", "r2\n"))
+	if _, err := c.Repo.UpdateRef(ctx, &xylemv1.UpdateRefRequest{Name: "main", ExpectedId: root, NewId: m1}); err != nil {
+		t.Fatal(err)
+	}
+	x1 := create(root, "x1", uploadBlob(t, c, "b.txt", "b\n"))
+	x2 := create(x1, "x2", uploadBlob(t, c, "c.txt", "c\n"))
+
+	rb, err := c.Write.Rebase(ctx, &xylemv1.RebaseRequest{Stack: [][]byte{x1, x2}, Onto: "main"})
+	if err != nil || len(rb.GetRebased()) != 2 || len(rb.GetConflicts()) != 0 {
+		t.Fatalf("rebase = %v, %v", rb, err)
+	}
+	cs, err := c.Repo.GetChangesets(ctx, &xylemv1.GetChangesetsRequest{Ids: rb.GetRebased()[:1]})
+	if err != nil || string(cs.GetChangesets()[0].GetParents()[0]) != string(m1) || string(cs.GetChangesets()[0].GetExtras()["rebased-from"]) != fmt.Sprintf("%x", x1) {
+		t.Errorf("rebased changeset %v, %v", cs, err)
+	}
+	if rb, err := c.Write.Rebase(ctx, &xylemv1.RebaseRequest{Stack: [][]byte{x1, x2}, Onto: fmt.Sprintf("%x", root)}); err != nil ||
+		string(rb.GetRebased()[0]) != string(x1) {
+		t.Errorf("rebase onto its own base = %v, %v", rb, err)
+	}
+
+	land, err := c.Write.Land(ctx, &xylemv1.LandRequest{Stack: [][]byte{x1, x2}})
+	if err != nil || len(land.GetLanded()) != 2 || land.GetAttempts() != 1 || string(land.GetNewTip()) != string(land.GetLanded()[1]) {
+		t.Fatalf("land = %v, %v", land, err)
+	}
+	tip, err := c.Repo.ResolveRevision(ctx, &xylemv1.ResolveRevisionRequest{Revision: "main"})
+	if err != nil || string(tip.GetId()) != string(land.GetNewTip()) {
+		t.Errorf("main = %v after land, %v", tip, err)
+	}
+	on, err := c.Repo.GetChangesets(ctx, &xylemv1.GetChangesetsRequest{Ids: land.GetLanded()})
+	if err != nil || !on.GetChangesets()[0].GetOnMainline() || !on.GetChangesets()[1].GetOnMainline() {
+		t.Errorf("landed changesets not on the mainline: %v", err)
+	}
+
+	// A conflicting land: the response carries the conflict; main stays.
+	y := create(root, "y", uploadBlob(t, c, "README", "r by y\n"))
+	land, err = c.Write.Land(ctx, &xylemv1.LandRequest{Stack: [][]byte{y}})
+	if err != nil || len(land.GetConflicts()) != 1 || string(land.GetConflictingChangeset()) != string(y) || len(land.GetNewTip()) != 0 {
+		t.Fatalf("conflicting land = %v, %v", land, err)
+	}
+	got := land.GetConflicts()[0]
+	if string(got.GetPath()) != "README" || got.GetKind() != xylemv1.Conflict_KIND_CONTENT || len(got.GetBaseBlob()) != 32 || len(got.GetOursBlob()) != 32 || len(got.GetTheirsBlob()) != 32 {
+		t.Errorf("conflict %v", got)
+	}
+	if after, _ := c.Repo.ResolveRevision(ctx, &xylemv1.ResolveRevisionRequest{Revision: "main"}); string(after.GetId()) != string(tip.GetId()) {
+		t.Error("a conflicting land moved main")
+	}
+	if rb, err := c.Write.Rebase(ctx, &xylemv1.RebaseRequest{Stack: [][]byte{y}, Onto: "main"}); err != nil || len(rb.GetConflicts()) != 1 || len(rb.GetRebased()) != 0 {
+		t.Errorf("conflicting rebase = %v, %v", rb, err)
+	}
+	if n := metricValue(t, reg, "xylem_land_attempts"); n != 2 {
+		t.Errorf("xylem_land_attempts count %v, want 2", n)
+	}
+	if n := metricValue(t, reg, "xylem_land_conflicts_total"); n != 1 {
+		t.Errorf("xylem_land_conflicts_total %v, want 1", n)
+	}
+
+	for name, tc := range map[string]struct {
+		call func() error
+		code codes.Code
+	}{
+		"land: bad id":      {func() error { _, err := c.Write.Land(ctx, &xylemv1.LandRequest{Stack: [][]byte{{1}}}); return err }, codes.InvalidArgument},
+		"land: empty stack": {func() error { _, err := c.Write.Land(ctx, &xylemv1.LandRequest{}); return err }, codes.InvalidArgument},
+		"land: not a chain": {func() error { _, err := c.Write.Land(ctx, &xylemv1.LandRequest{Stack: [][]byte{x2, x1}}); return err }, codes.InvalidArgument},
+		"land: too many": {func() error {
+			_, err := c.Write.Land(ctx, &xylemv1.LandRequest{Stack: [][]byte{x1}, MaxAttempts: 5000})
+			return err
+		}, codes.InvalidArgument},
+		"land: unknown ref": {func() error {
+			_, err := c.Write.Land(ctx, &xylemv1.LandRequest{Stack: [][]byte{x1}, TargetRef: "nope"})
+			return err
+		}, codes.NotFound},
+		"land: unknown id": {func() error {
+			_, err := c.Write.Land(ctx, &xylemv1.LandRequest{Stack: [][]byte{make([]byte, 32)}})
+			return err
+		}, codes.NotFound},
+		"rebase: bad onto": {func() error {
+			_, err := c.Write.Rebase(ctx, &xylemv1.RebaseRequest{Stack: [][]byte{x1}, Onto: "nope"})
+			return err
+		}, codes.NotFound},
+		"rebase: empty onto": {func() error { _, err := c.Write.Rebase(ctx, &xylemv1.RebaseRequest{Stack: [][]byte{x1}}); return err }, codes.InvalidArgument},
+		"rebase: unknown repo": {func() error {
+			_, err := c.Write.Rebase(ctx, &xylemv1.RebaseRequest{Repo: "nope", Stack: [][]byte{x1}, Onto: "main"})
+			return err
+		}, codes.NotFound},
+	} {
+		if err := tc.call(); status.Code(err) != tc.code {
+			t.Errorf("%s: %v, want %v", name, err, tc.code)
+		}
 	}
 }
