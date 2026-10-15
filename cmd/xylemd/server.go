@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
+	"google.golang.org/grpc"
 
 	"github.com/delefrati/xylem/internal/hash"
 	"github.com/delefrati/xylem/internal/repo"
@@ -55,7 +56,7 @@ func newServerCmd(g *globalFlags) *cobra.Command {
 					return nil
 				},
 			})
-			return serve(ctx, srv, listen, httpListen, log)
+			return serve(ctx, srv.NewGRPCServer(), srv.HTTPHandler(), "tcp", listen, httpListen, log)
 		},
 	}
 	addDBFlag(cmd, &dbURL)
@@ -68,10 +69,11 @@ func newServerCmd(g *globalFlags) *cobra.Command {
 	return cmd
 }
 
-// serve runs the gRPC and HTTP servers until ctx is done, then drains.
-func serve(ctx context.Context, srv *server.Server, listen, httpListen string, log *slog.Logger) error {
+// serve runs the gRPC server (on network "tcp" or "unix") and the HTTP
+// server until ctx is done, then drains.
+func serve(ctx context.Context, g *grpc.Server, handler http.Handler, network, listen, httpListen string, log *slog.Logger) error {
 	lc := net.ListenConfig{}
-	grpcLis, err := lc.Listen(ctx, "tcp", listen)
+	grpcLis, err := lc.Listen(ctx, network, listen)
 	if err != nil {
 		return fmt.Errorf("listening on %s: %w", listen, err)
 	}
@@ -80,8 +82,7 @@ func serve(ctx context.Context, srv *server.Server, listen, httpListen string, l
 		_ = grpcLis.Close()
 		return fmt.Errorf("listening on %s: %w", httpListen, err)
 	}
-	g := srv.NewGRPCServer()
-	h := &http.Server{Handler: srv.HTTPHandler(), ReadHeaderTimeout: 10 * time.Second}
+	h := &http.Server{Handler: handler, ReadHeaderTimeout: 10 * time.Second}
 	errs := make(chan error, 2)
 	go func() { errs <- g.Serve(grpcLis) }()
 	go func() {
@@ -89,7 +90,7 @@ func serve(ctx context.Context, srv *server.Server, listen, httpListen string, l
 			errs <- err
 		}
 	}()
-	log.Info("server listening", "grpc", grpcLis.Addr().String(), "http", httpLis.Addr().String())
+	log.Info("listening", "grpc", grpcLis.Addr().String(), "http", httpLis.Addr().String())
 
 	select {
 	case <-ctx.Done():

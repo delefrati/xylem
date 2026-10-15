@@ -13,6 +13,8 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
+
+	"github.com/delefrati/xylem/internal/cache"
 )
 
 // RequestIDHeader carries the request id in and out (gRPC metadata).
@@ -80,7 +82,8 @@ func (s *Server) begin(ctx context.Context, method string) (context.Context, err
 		id = hex.EncodeToString(b[:])
 	}
 	ctx = context.WithValue(ctx, requestIDKey{}, id)
-	_ = grpc.SetHeader(ctx, metadata.Pairs(RequestIDHeader, id))
+	_ = grpc.SetHeader(ctx, metadata.Pairs(RequestIDHeader, id, cache.TierHeader, cache.KindServer))
+	_ = grpc.SetTrailer(ctx, metadata.Pairs(cache.TierHeader, cache.KindServer))
 	if s.cfg.Auth != nil {
 		if err := s.cfg.Auth(ctx, method); err != nil {
 			return ctx, status.Error(codes.Unauthenticated, err.Error())

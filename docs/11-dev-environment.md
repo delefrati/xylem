@@ -88,6 +88,16 @@ volumes: { pgdata: {}, miniodata: {} }
 | `--log-level` | `XYLEM_LOG_LEVEL` | `info` | |
 | `--auth-token` | `XYLEM_AUTH_TOKEN` | empty (disabled) | M9 |
 
+### Cache tier (`xylemd cache`, M8)
+
+| Flag | Env | Default | Notes |
+|---|---|---|---|
+| `--upstream` | `XYLEM_UPSTREAM` | (required) | a `xylemd server`; checked at startup via the `xylem-tier` response header |
+| `--listen` / `--http-listen` | `XYLEM_LISTEN` / `XYLEM_HTTP_LISTEN` | `:7400` / `:7401` | ObjectService only; `/healthz`, `/readyz` (upstream reachable), `/metrics` |
+| `--memory-bytes` | `XYLEM_MEMORY_BYTES` | `4294967296` | memory LRU |
+| `--disk-dir` / `--disk-bytes` | `XYLEM_DISK_DIR` / `XYLEM_DISK_BYTES` | off / `107374182400` | disk LRU (fs-store layout) |
+| `--max-inflight` | | `256` | concurrent upstream requests; then a queue of 4×, then `ResourceExhausted` |
+
 `xylemd migrate` applies pending migrations. `xylemd admin init-repo <name>` creates a repo with an empty root changeset and a `main` ref, for repos not imported from git.
 
 ## `.golangci.yml` (baseline)

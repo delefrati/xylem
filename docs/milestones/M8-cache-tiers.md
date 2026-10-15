@@ -7,7 +7,7 @@
 ## Tasks
 
 - [x] **M8.1 `internal/cache.Tier`.** Memory LRU plus an optional disk LRU (same key layout as the fs store), singleflight on misses, a miss-batching window (≤ 2 ms, ≤ 1024 ids), verification of upstream objects, an in-flight upstream limit with fast-fail, and write-through `PutObjects`.
-- [ ] **M8.2 `xylemd cache`.** Flags `--upstream <server addr>`, `--memory-bytes`, `--disk-dir`, `--disk-bytes`. Serves `ObjectService` only; metadata RPCs return `Unimplemented`. Config validation enforces that the upstream is a server.
+- [x] **M8.2 `xylemd cache`.** Flags `--upstream <server addr>`, `--memory-bytes`, `--disk-dir`, `--disk-bytes`. Serves `ObjectService` only; metadata RPCs return `Unimplemented`. Config validation enforces that the upstream is a server.
 - [ ] **M8.3 `xylemd daemon`.** Listens on the Unix socket (per 09), upstream is a cache (or a server when `--allow-direct-upstream` is set, for dev). Implements `ObjectService` via `Tier` and **transparently proxies** `RepoService`/`WriteService` to the upstream server address (`--server`).
 - [ ] **M8.4 Client support.** `server = "unix://…"` in `config.toml`. When connected to a daemon, the client may disable its local cache (`cache_max_bytes = 0`).
 - [ ] **M8.5 Metrics and health** for both tiers (09 metric names), plus `/readyz` checking the upstream.
