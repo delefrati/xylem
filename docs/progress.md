@@ -4,9 +4,9 @@ Maintained by the implementing agent. Newest entries first within each section.
 
 ## Status
 
-- **Current milestone:** M8 — Cache tiers
+- **Current milestone:** M8 — Cache tiers (complete, awaiting human review)
 - **Last checkpoint approved by human:** M7 — 2026-10-14 (M6/MVP, M5, M4, M3, M2, M1, golden vectors and M0 approved 2026-10-14)
-- **Blocked on:** —
+- **Blocked on:** human review of M8
 
 ## Open questions (for the human)
 
@@ -64,6 +64,34 @@ Maintained by the implementing agent. Newest entries first within each section.
 - 2026-10-14 M0.2: client CLI lives in `cmd/xy` (M0.2, binary name), not `cmd/xylem` as the layout tree said; doc updated: 02-architecture.md
 
 ## Milestone results
+
+### M8 — 2026-10-14
+
+M8 has no Verification section, so these are the checks I ran, on 4f85581:
+- `make check` → exit 0.
+- `make parity` and `make e2e` → ok.
+- `make bench-tiers` → ok, 3 runs.
+- The tier tests 3× under -race → ok.
+
+| Acceptance criterion | Evidence | Result |
+|---|---|---|
+| The store contract suite also passes against a `Tier` (read path) | TestTierStoreContract runs storetest against `Tier.Store()` with a memory cache, and with a disk-only cache, over an ObjectService upstream | ✅ |
+| Clone parity passes when the client goes through daemon → cache → server | TestDaemonChain: the parity `clone` check (full + 3 sparse profiles vs `git archive`), plus `log` and `read-file`, against `unix://…` → `xylemd daemon` → `xylemd cache` → server: all 100% | ✅ |
+| In the benchmark, server object reads are < 5% of total object requests after warm-up | 100 concurrent sparse clones: 23 server reads for 4,730 object requests (0.49%); daemon hit rate 98.2% | ✅ |
+| Killing the cache tier mid-benchmark gives clients clean `Unavailable` errors, and the server doesn't exceed its in-flight limit | cache stopped after 10 clones: every failed clone (15–75 of 100 across runs) failed with Unavailable; cache upstream in flight peaked at 2–4 of 64. TestDaemonChain also checks daemon `/readyz` 503 and Unavailable on a cold fetch, with proxied history still working | ✅ |
+
+**Summary:** objects can now flow through two caching tiers that speak the same `ObjectService` as the server:
+- **`xylemd cache`** is regional: memory and disk caches, plus write-through uploads.
+- **`xylemd daemon`** runs per machine on a Unix socket. Its disk cache is shared by all workspaces, and it proxies every RepoService/WriteService call byte for byte to the server, so clients need one address (`unix://…`, optionally with `xy clone --no-cache`).
+- **Under the hood:** concurrent misses for an object share one upstream fetch, misses are batched for 2 ms, everything from upstream is verified, and in-flight upstream calls are capped with fail-fast beyond a queue.
+- **Strict tiering** (daemon → cache → server) is checked at startup through a `xylem-tier` response header that every tier, including the server, sends.
+
+Worth a look:
+- The proxy is generic: any new RepoService/WriteService RPC works through the daemon without code.
+- `cache_max_bytes = 0` means no persistent client cache.
+- The server's object LRU is now `cache.Memory`.
+- An unrelated flaky test was fixed: `xylemd import --follow` interrupted mid-run now exits cleanly.
+- `seed` warm starts remain post-M8.
 
 ### M7 — 2026-10-14
 
