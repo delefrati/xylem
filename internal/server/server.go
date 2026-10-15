@@ -16,6 +16,7 @@ import (
 	"google.golang.org/grpc/status"
 
 	xylemv1 "github.com/delefrati/xylem/gen/xylem/v1"
+	"github.com/delefrati/xylem/internal/cache"
 	"github.com/delefrati/xylem/internal/derived"
 	"github.com/delefrati/xylem/internal/meta"
 	"github.com/delefrati/xylem/internal/repo"
@@ -62,7 +63,7 @@ type Server struct {
 	cfg     Config
 	log     *slog.Logger
 	metrics *rpcMetrics
-	objects *objCache
+	objects *cache.Memory
 
 	mu    sync.Mutex
 	repos map[string]*repo.Repo
@@ -90,7 +91,7 @@ func New(cfg Config) *Server {
 	}
 	return &Server{
 		cfg: cfg, log: cfg.Logger, metrics: metrics,
-		objects: newObjCache(cfg.ObjectCacheBytes), repos: map[string]*repo.Repo{},
+		objects: cache.NewMemory(cfg.ObjectCacheBytes), repos: map[string]*repo.Repo{},
 	}
 }
 

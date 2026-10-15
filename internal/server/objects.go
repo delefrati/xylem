@@ -118,7 +118,7 @@ func (s *Server) GetObjects(req *xylemv1.GetObjectsRequest, stream xylemv1.Objec
 // readObject returns an object's stored frame from the cache or the store,
 // or nil if the store does not have it.
 func (s *Server) readObject(ctx context.Context, id hash.ID) ([]byte, error) {
-	if data, ok := s.objects.get(id); ok {
+	if data, ok := s.objects.Get(id); ok {
 		return data, nil
 	}
 	data, err := s.cfg.Objects.Get(ctx, id)
@@ -128,7 +128,7 @@ func (s *Server) readObject(ctx context.Context, id hash.ID) ([]byte, error) {
 	if err != nil {
 		return nil, fmt.Errorf("reading object %s: %w", id, err)
 	}
-	s.objects.add(id, data)
+	s.objects.Add(id, data)
 	return data, nil
 }
 
@@ -145,7 +145,7 @@ func (s *Server) HasObjects(ctx context.Context, req *xylemv1.HasObjectsRequest)
 	var ask []hash.ID
 	var askAt []int
 	for i, id := range ids {
-		if s.objects.has(id) {
+		if s.objects.Has(id) {
 			present[i] = true
 		} else {
 			ask = append(ask, id)
