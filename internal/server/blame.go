@@ -13,6 +13,9 @@ import (
 // with the changeset that introduced it, following first-parent history.
 // Binary files are FailedPrecondition.
 func (s *Server) Blame(ctx context.Context, req *xylemv1.BlameRequest) (*xylemv1.BlameResponse, error) {
+	if err := s.rateLimit(ctx, LimitBlame); err != nil {
+		return nil, err
+	}
 	r, err := s.repo(ctx, req.GetRepo())
 	if err != nil {
 		return nil, err

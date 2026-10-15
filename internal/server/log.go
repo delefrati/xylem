@@ -56,6 +56,11 @@ func decodeLogToken(s string) (repo.LogCursor, error) {
 // Log implements RepoService: the first-parent history of revision (default
 // main), optionally limited to changesets that touch path, newest first.
 func (s *Server) Log(ctx context.Context, req *xylemv1.LogRequest) (*xylemv1.LogResponse, error) {
+	if len(req.GetPath()) > 0 {
+		if err := s.rateLimit(ctx, LimitLogPath); err != nil {
+			return nil, err
+		}
+	}
 	r, err := s.repo(ctx, req.GetRepo())
 	if err != nil {
 		return nil, err

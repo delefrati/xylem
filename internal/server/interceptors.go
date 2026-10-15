@@ -35,6 +35,7 @@ type rpcMetrics struct {
 	landConflicts prometheus.Counter
 	mergeClean    prometheus.Counter
 	mergeConflict prometheus.Counter
+	rateLimited   *prometheus.CounterVec
 }
 
 func newRPCMetrics(reg prometheus.Registerer) *rpcMetrics {
@@ -62,7 +63,11 @@ func newRPCMetrics(reg prometheus.Registerer) *rpcMetrics {
 		Name: "xylem_merge_conflict_total",
 		Help: "Line merges (diff3) during rebase or land that had conflicting regions.",
 	})
-	reg.MustRegister(m.duration, m.landAttempts, m.landConflicts, m.mergeClean, m.mergeConflict)
+	m.rateLimited = prometheus.NewCounterVec(prometheus.CounterOpts{
+		Name: "xylem_rate_limited_total",
+		Help: "Calls rejected by a per-caller rate limit, by RPC (M9.2).",
+	}, []string{"rpc"})
+	reg.MustRegister(m.duration, m.landAttempts, m.landConflicts, m.mergeClean, m.mergeConflict, m.rateLimited)
 	return m
 }
 

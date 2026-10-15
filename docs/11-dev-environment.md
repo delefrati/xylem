@@ -85,6 +85,7 @@ volumes: { pgdata: {}, miniodata: {} }
 | `--http-listen` | `XYLEM_HTTP_LISTEN` | `:7401` | health, metrics |
 | `--object-cache-bytes` | `XYLEM_OBJECT_CACHE_BYTES` | `1073741824` | in-memory LRU |
 | `--merge-max-bytes` | `XYLEM_MERGE_MAX_BYTES` | `8388608` | largest file side rebase merges line by line (M7); larger ones conflict as a whole |
+| `--rate-limits` | `XYLEM_RATE_LIMITS` | `off` | per-caller token buckets (M9.2): `recommended` (`Blame=5:20,Diff=10:40,Log=10:40,MergeBase=20:80`) or a list of `RPC=rate/s:burst` |
 | `--log-level` | `XYLEM_LOG_LEVEL` | `info` | |
 | `--auth-tokens` | `XYLEM_AUTH_TOKENS` | empty (auth off) | tokens file, see below (M9.1) |
 

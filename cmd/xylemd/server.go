@@ -27,7 +27,7 @@ const drainTimeout = 10 * time.Second
 func newServerCmd(g *globalFlags) *cobra.Command {
 	var (
 		dbURL, storeURL, listen, httpListen string
-		authTokens                          string
+		authTokens, rateLimits              string
 		objectCacheBytes, mergeMaxBytes     int64
 	)
 	cmd := &cobra.Command{
@@ -44,6 +44,13 @@ func newServerCmd(g *globalFlags) *cobra.Command {
 			if err != nil {
 				return err
 			}
+			limits, err := server.ParseRateLimits(rateLimits)
+			if err != nil {
+				return fmt.Errorf("--rate-limits: %w", err)
+			}
+			if limits != nil {
+				log.Info("rate limits", "limits", server.FormatRateLimits(limits))
+			}
 			d, err := openDeps(ctx, dbURL, storeURL)
 			if err != nil {
 				return err
@@ -51,6 +58,7 @@ func newServerCmd(g *globalFlags) *cobra.Command {
 			defer d.Close()
 			srv := server.New(server.Config{
 				Meta: d.meta, Objects: d.objs, Logger: log, ObjectCacheBytes: objectCacheBytes, Auth: tokens,
+				RateLimits:  limits,
 				RepoOptions: repo.Options{MergeMaxBytes: mergeMaxBytes},
 				Ready: func(ctx context.Context) error {
 					if err := d.meta.Ping(ctx); err != nil {
@@ -72,6 +80,8 @@ func newServerCmd(g *globalFlags) *cobra.Command {
 	cmd.Flags().Int64Var(&mergeMaxBytes, "merge-max-bytes", envInt64("XYLEM_MERGE_MAX_BYTES", repo.DefaultMergeMaxBytes),
 		"largest file side rebase merges line by line; larger ones conflict as a whole (env XYLEM_MERGE_MAX_BYTES)")
 	addAuthTokensFlag(cmd, &authTokens)
+	cmd.Flags().StringVar(&rateLimits, "rate-limits", envOr("XYLEM_RATE_LIMITS", "off"),
+		`per-caller limits on expensive RPCs: "off", "recommended" or e.g. "Blame=5:20,Log=10:40,Diff=10:40,MergeBase=20:80" (rate/s:burst; Log with a path, Diff with hunks) (env XYLEM_RATE_LIMITS)`)
 	cmd.Flags().Int64Var(&objectCacheBytes, "object-cache-bytes", envInt64("XYLEM_OBJECT_CACHE_BYTES", 1<<30), "in-memory object cache size (env XYLEM_OBJECT_CACHE_BYTES)")
 	return cmd
 }

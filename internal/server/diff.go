@@ -33,6 +33,11 @@ const (
 // skipping identical subtrees. Files stream in depth-first path order.
 func (s *Server) Diff(req *xylemv1.DiffRequest, stream xylemv1.RepoService_DiffServer) error {
 	ctx := stream.Context()
+	if req.GetIncludeHunks() {
+		if err := s.rateLimit(ctx, LimitDiffHunks); err != nil {
+			return err
+		}
+	}
 	r, err := s.repo(ctx, req.GetRepo())
 	if err != nil {
 		return err

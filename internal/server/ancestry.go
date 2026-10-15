@@ -43,6 +43,9 @@ func (s *Server) IsAncestor(ctx context.Context, req *xylemv1.IsAncestorRequest)
 // MergeBase implements RepoService: the best common ancestors, as
 // `git merge-base --all`, sorted by generation descending then id.
 func (s *Server) MergeBase(ctx context.Context, req *xylemv1.MergeBaseRequest) (*xylemv1.MergeBaseResponse, error) {
+	if err := s.rateLimit(ctx, LimitMergeBase); err != nil {
+		return nil, err
+	}
 	r, err := s.repo(ctx, req.GetRepo())
 	if err != nil {
 		return nil, err

@@ -119,7 +119,8 @@ func TestCreateChangesetRPC(t *testing.T) {
 	}
 }
 
-// metricValue returns a counter's value or a histogram's sample count.
+// metricValue returns a counter's value or a histogram's sample count,
+// summed over labels.
 func metricValue(t *testing.T, reg *prometheus.Registry, name string) float64 {
 	t.Helper()
 	families, err := reg.Gather()
@@ -130,11 +131,15 @@ func metricValue(t *testing.T, reg *prometheus.Registry, name string) float64 {
 		if f.GetName() != name {
 			continue
 		}
-		m := f.GetMetric()[0]
-		if h := m.GetHistogram(); h != nil {
-			return float64(h.GetSampleCount())
+		sum := 0.0 // over every label combination
+		for _, m := range f.GetMetric() {
+			if h := m.GetHistogram(); h != nil {
+				sum += float64(h.GetSampleCount())
+			} else {
+				sum += m.GetCounter().GetValue()
+			}
 		}
-		return m.GetCounter().GetValue()
+		return sum
 	}
 	return 0
 }

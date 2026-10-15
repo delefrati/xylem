@@ -48,6 +48,9 @@ type Config struct {
 	// MaxDiffEntries bounds the tree entries one Diff may scan (default
 	// DefaultMaxDiffEntries); beyond it Diff fails with ResourceExhausted.
 	MaxDiffEntries int
+	// RateLimits are per-caller token buckets for the expensive RPCs (M9.2),
+	// keyed by LimitBlame etc.; nil means no limits.
+	RateLimits map[string]RateLimit
 	// MaxAncestryNodes bounds the changesets IsAncestor and MergeBase may
 	// visit (default DefaultMaxAncestryNodes).
 	MaxAncestryNodes int64
@@ -63,6 +66,7 @@ type Server struct {
 	log     *slog.Logger
 	metrics *rpcMetrics
 	objects *cache.Memory
+	limiter *limiter // nil: no rate limits
 
 	mu    sync.Mutex
 	repos map[string]*repo.Repo
@@ -88,10 +92,14 @@ func New(cfg Config) *Server {
 			next(clean)
 		}
 	}
-	return &Server{
+	s := &Server{
 		cfg: cfg, log: cfg.Logger, metrics: metrics,
 		objects: cache.NewMemory(cfg.ObjectCacheBytes), repos: map[string]*repo.Repo{},
 	}
+	if len(cfg.RateLimits) > 0 {
+		s.limiter = newLimiter(cfg.RateLimits, nil)
+	}
+	return s
 }
 
 // Registry returns the metrics registry.
