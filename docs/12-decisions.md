@@ -56,6 +56,7 @@ An implementing agent may add **Proposed** ADRs. Only a human changes them to Ac
 ### ADR-012 — File-level conflicts in the MVP, diff3 later · Accepted
 **Decision:** M6 rebase treats concurrent edits to the same file as a conflict; M7 adds line-level three-way merge.
 **Consequences:** The MVP is safe and simple. Hot files will conflict more often until M7.
+**Status (M7, done):** rebase and land now merge regular files line by line (`internal/merge.Merge3`, diff3) when both sides changed the content, or both added the file (empty base). Only overlapping or adjacent changes conflict, reported with their region count. Symlinks, binary files and sides over `--merge-max-bytes` (default 8 MiB) still conflict as whole files.
 
 ### ADR-013 — Git is the test oracle · Accepted
 **Decision:** The parity suite compares Xylem against git for trees, log, diff, blame, merge-base and checkout.

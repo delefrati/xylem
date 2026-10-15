@@ -30,6 +30,8 @@ type rpcMetrics struct {
 	duration      *prometheus.HistogramVec
 	landAttempts  prometheus.Histogram
 	landConflicts prometheus.Counter
+	mergeClean    prometheus.Counter
+	mergeConflict prometheus.Counter
 }
 
 func newRPCMetrics(reg prometheus.Registerer) *rpcMetrics {
@@ -49,7 +51,15 @@ func newRPCMetrics(reg prometheus.Registerer) *rpcMetrics {
 			Help: "Lands rejected with file-level conflicts.",
 		}),
 	}
-	reg.MustRegister(m.duration, m.landAttempts, m.landConflicts)
+	m.mergeClean = prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "xylem_merge_clean_total",
+		Help: "Line merges (diff3) during rebase or land that merged cleanly.",
+	})
+	m.mergeConflict = prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "xylem_merge_conflict_total",
+		Help: "Line merges (diff3) during rebase or land that had conflicting regions.",
+	})
+	reg.MustRegister(m.duration, m.landAttempts, m.landConflicts, m.mergeClean, m.mergeConflict)
 	return m
 }
 

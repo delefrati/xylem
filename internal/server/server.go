@@ -76,8 +76,20 @@ func New(cfg Config) *Server {
 	if cfg.Registry == nil {
 		cfg.Registry = prometheus.NewRegistry()
 	}
+	metrics := newRPCMetrics(cfg.Registry)
+	next := cfg.RepoOptions.OnMerge
+	cfg.RepoOptions.OnMerge = func(clean bool) {
+		if clean {
+			metrics.mergeClean.Inc()
+		} else {
+			metrics.mergeConflict.Inc()
+		}
+		if next != nil {
+			next(clean)
+		}
+	}
 	return &Server{
-		cfg: cfg, log: cfg.Logger, metrics: newRPCMetrics(cfg.Registry),
+		cfg: cfg, log: cfg.Logger, metrics: metrics,
 		objects: newObjCache(cfg.ObjectCacheBytes), repos: map[string]*repo.Repo{},
 	}
 }

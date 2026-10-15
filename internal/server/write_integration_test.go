@@ -215,6 +215,32 @@ func TestRebaseAndLandRPCs(t *testing.T) {
 	if n := metricValue(t, reg, "xylem_land_conflicts_total"); n != 1 {
 		t.Errorf("xylem_land_conflicts_total %v, want 1", n)
 	}
+	if n := metricValue(t, reg, "xylem_merge_conflict_total"); n != 2 { // the land and the rebase of y
+		t.Errorf("xylem_merge_conflict_total %v, want 2", n)
+	}
+
+	// Different regions of one file merge line by line (M7).
+	tip, err = c.Repo.ResolveRevision(ctx, &xylemv1.ResolveRevisionRequest{Revision: "main"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	base := create(tip.GetId(), "add lines", uploadBlob(t, c, "lines.txt", "1\n2\n3\n4\n5\n"))
+	if _, err := c.Write.Land(ctx, &xylemv1.LandRequest{Stack: [][]byte{base}}); err != nil {
+		t.Fatal(err)
+	}
+	top := create(base, "top", uploadBlob(t, c, "lines.txt", "one\n2\n3\n4\n5\n"))
+	bottom := create(base, "bottom", uploadBlob(t, c, "lines.txt", "1\n2\n3\n4\nfive\n"))
+	for _, id := range [][]byte{top, bottom} {
+		if land, err := c.Write.Land(ctx, &xylemv1.LandRequest{Stack: [][]byte{id}}); err != nil || len(land.GetConflicts()) != 0 {
+			t.Fatalf("land of a different region = %v, %v", land, err)
+		}
+	}
+	if _, merged, err := readFile(t, c, "main", "lines.txt"); err != nil || string(merged) != "one\n2\n3\n4\nfive\n" {
+		t.Errorf("merged lines.txt = %q, %v", merged, err)
+	}
+	if n := metricValue(t, reg, "xylem_merge_clean_total"); n != 1 {
+		t.Errorf("xylem_merge_clean_total %v, want 1", n)
+	}
 
 	for name, tc := range map[string]struct {
 		call func() error

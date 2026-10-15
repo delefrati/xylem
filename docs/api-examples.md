@@ -259,11 +259,11 @@ Conflicts are file-level and come back in the response, not as an error. Nothing
 
 ```json
 { "conflicts": [ { "path": "UkVBRE1F", "kind": "KIND_ADD_ADD",
-                   "oursBlob": "2DzVgHD3…", "theirsBlob": "G1ngkRGC…" } ],
+                   "oursBlob": "2DzVgHD3…", "theirsBlob": "G1ngkRGC…", "regionCount": 1 } ],
   "conflictingChangeset": "f6tPsDPQkipwY79F99eYuTSNcjAcFZZXcrZ1PHGhyL0=", "attempts": 1 }
 ```
 
-`ours` is the target side and `theirs` the stack's. Kinds are `CONTENT`, `DELETE_MODIFY`, `ADD_ADD`, `FILE_DIRECTORY` and `MODE`. Stack entries whose changes are already on the target are listed in `skipped`. Running out of attempts is `Aborted`. The `xylem_land_attempts` histogram and the `xylem_land_conflicts_total` counter are on `/metrics`.
+`ours` is the target side and `theirs` the stack's. Kinds are `CONTENT`, `DELETE_MODIFY`, `ADD_ADD`, `FILE_DIRECTORY` and `MODE`. When both sides edited a text file, the server first merges it line by line (M7): edits to different regions land, and only overlapping ones conflict, with `regionCount` set to the number of conflicting regions (0 means the whole file, e.g. binaries). Stack entries whose changes are already on the target are listed in `skipped`. Running out of attempts is `Aborted`. The `xylem_land_attempts` histogram and the `xylem_land_conflicts_total`, `xylem_merge_clean_total` and `xylem_merge_conflict_total` counters are on `/metrics`.
 
 ### Rebase
 

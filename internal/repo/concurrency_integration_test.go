@@ -100,8 +100,9 @@ func TestLandConcurrencyDisjoint(t *testing.T) {
 	verifyRepo(t, r)
 }
 
-// TestLandConcurrencySameFile is requirement 2: two stacks edit the same
-// file concurrently; exactly one lands and the other gets a content conflict.
+// TestLandConcurrencySameFile is requirement 2 for the same region: two
+// stacks rewrite the same line concurrently; exactly one lands and the other
+// gets a content conflict.
 func TestLandConcurrencySameFile(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -140,6 +141,60 @@ func TestLandConcurrencySameFile(t *testing.T) {
 		}
 		if landed != 1 || conflicted != 1 {
 			t.Fatalf("round %d: %d landed, %d conflicted: %+v %+v", round, landed, conflicted, results[0], results[1])
+		}
+	}
+	verifyRepo(t, r)
+}
+
+// TestLandConcurrencySameFileRegions is requirement 2 with line merge (M7):
+// two stacks edit different regions of the same file concurrently; both land
+// and main has both edits.
+func TestLandConcurrencySameFileRegions(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	env, root := landEnv(t)
+	r := env.Repo
+	text := func(top, bottom string) string {
+		return top + "\n2\n3\n4\n5\n6\n7\n8\n9\n" + bottom + "\n"
+	}
+	start := repotest.Commit(t, r, []hash.ID{root.ID}, "add f.txt", repotest.Put(t, r, "f.txt", text("top -1", "bottom -1")))
+	if _, err := r.UpdateRef(ctx, repo.MainRef, root.ID, start.ID, false, "test", "admin"); err != nil {
+		t.Fatal(err)
+	}
+	for round := range 10 {
+		tip := mainTip(t, r)
+		prevTop, prevBottom := fmt.Sprintf("top %d", round-1), fmt.Sprintf("bottom %d", round-1)
+		top, bottom := fmt.Sprintf("top %d", round), fmt.Sprintf("bottom %d", round)
+		stacks := []hash.ID{
+			repotest.Commit(t, r, []hash.ID{tip.ID}, top, repotest.Put(t, r, "f.txt", text(top, prevBottom))).ID,
+			repotest.Commit(t, r, []hash.ID{tip.ID}, bottom, repotest.Put(t, r, "f.txt", text(prevTop, bottom))).ID,
+		}
+		results := make([]*repo.LandResult, 2)
+		var g errgroup.Group
+		ready := make(chan struct{})
+		for i := range stacks {
+			g.Go(func() error {
+				<-ready
+				var err error
+				results[i], err = r.Land(ctx, []hash.ID{stacks[i]}, repo.LandOptions{MaxAttempts: 100})
+				return err
+			})
+		}
+		close(ready)
+		if err := g.Wait(); err != nil {
+			t.Fatal(err)
+		}
+		for i, res := range results {
+			if len(res.Conflicts) != 0 || len(res.Landed) != 1 {
+				t.Fatalf("round %d, writer %d: %+v", round, i, res)
+			}
+		}
+		tipCS, err := r.Changeset(ctx, mainTip(t, r).ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got, _ := content(t, r, tipCS, "f.txt"); got != text(top, bottom) {
+			t.Fatalf("round %d: f.txt = %q", round, got)
 		}
 	}
 	verifyRepo(t, r)

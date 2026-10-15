@@ -54,10 +54,10 @@ return out
 |---|---|
 | `b == o` (p untouched since base) | keep the change |
 | `o == x` (onto already has the same result) | drop the change (already applied) |
-| both sides files and both changed the content, differently | **M6:** conflict `CONTENT`. **M7:** three-way line merge (diff3); clean → PUT of the merged blob, else conflict |
+| both sides files and both changed the content, differently | three-way line merge (diff3, M7) for regular files within `--merge-max-bytes`: clean → PUT of the merged blob, else conflict `CONTENT` with `region_count`. Symlinks, binaries and larger files: conflict `CONTENT` (whole file) |
 | `b` file, `o` absent (deleted on onto), `x` modified | conflict `DELETE_MODIFY` |
 | `b` file, `o` modified, `x` delete | conflict `DELETE_MODIFY` |
-| `b` absent, `o` present, `x` present, `o ≠ x` | conflict `ADD_ADD` (M7: diff3 against an empty base) |
+| `b` absent, `o` present, `x` present, `o ≠ x` | diff3 against an empty base (M7); since both sides add at the same place this conflicts (`ADD_ADD` with `region_count`) unless the contents are identical |
 | `o` is a directory (TREE) at p, or `x` would need p to be a directory where `o` has a file | conflict `FILE_DIRECTORY` |
 | both sides files; only one side changed the mode and only the other changed the content | merge them: take the changed mode and the changed content (both sides' changes survive) |
 | both sides changed the mode, to different modes | conflict `MODE` |
