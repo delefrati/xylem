@@ -71,6 +71,7 @@ volumes: { pgdata: {}, miniodata: {} }
 | `make lint` | `golangci-lint run && buf lint` |
 | `make check` | `lint` + `test` + `test-integration` with `-race` + `build` (requires `make up`) |
 | `make fixtures` | Generate synthetic fixture repos into `testdata/fixtures/` |
+| `make bench-tiers` / `make bench-land` | M8.6 tier benchmark / M9.3 land batcher benchmark (informational; need `make up`) |
 | `make bench` | Run Go benchmarks (`-run=^$ -bench=. -benchmem`), integration ones included when services are up |
 | `make run-server` | `bin/xylemd server` with dev env vars |
 | `make demo` | `up` → build → migrate → import `edge` into repo `demo` → server on :7410 → clone into `/tmp/xylem-demo`, edit, status, diff, commit, land, log, blame → sparse clone of `dup/` |
@@ -85,6 +86,7 @@ volumes: { pgdata: {}, miniodata: {} }
 | `--http-listen` | `XYLEM_HTTP_LISTEN` | `:7401` | health, metrics |
 | `--object-cache-bytes` | `XYLEM_OBJECT_CACHE_BYTES` | `1073741824` | in-memory LRU |
 | `--merge-max-bytes` | `XYLEM_MERGE_MAX_BYTES` | `8388608` | largest file side rebase merges line by line (M7); larger ones conflict as a whole |
+| `--land-batch-window` | `XYLEM_LAND_BATCH_WINDOW` | `0` (off) | land batcher (M9.3, 07 §Contention mitigation), e.g. `20ms` |
 | `--rate-limits` | `XYLEM_RATE_LIMITS` | `off` | per-caller token buckets (M9.2): `recommended` (`Blame=5:20,Diff=10:40,Log=10:40,MergeBase=20:80`) or a list of `RPC=rate/s:burst` |
 | `--log-level` | `XYLEM_LOG_LEVEL` | `info` | |
 | `--auth-tokens` | `XYLEM_AUTH_TOKENS` | empty (auth off) | tokens file, see below (M9.1) |

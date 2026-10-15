@@ -512,8 +512,128 @@ func (p *PG) CreateRef(ctx context.Context, repo RepoID, name string, id hash.ID
 
 // CASRef implements Store.
 func (p *PG) CASRef(ctx context.Context, repo RepoID, name string, old, new hash.ID, mainline MainlineUpdate, log RefLogEntry) (Ref, error) {
-	ref := Ref{Name: name, ID: new}
+	var ref Ref
 	err := pgx.BeginFunc(ctx, p.pool, func(tx pgx.Tx) error {
+		var err error
+		ref, err = casRef(ctx, tx, repo, name, old, new, mainline, log)
+		return err
+	})
+	if err != nil {
+		return Ref{}, fmt.Errorf("cas ref %q: %w", name, err)
+	}
+	return ref, nil
+}
+
+// InsertAndCASRef implements Store.
+func (p *PG) InsertAndCASRef(ctx context.Context, repo RepoID, cs []NewChangeset, name string, old, new hash.ID, mainline MainlineUpdate, log RefLogEntry) (Ref, map[hash.ID]Inserted, error) {
+	var ref Ref
+	var out map[hash.ID]Inserted
+	err := pgx.BeginFunc(ctx, p.pool, func(tx pgx.Tx) error {
+		var err error
+		if out, err = insertChangesets(ctx, tx, repo, cs); err != nil {
+			return err
+		}
+		ref, err = casRef(ctx, tx, repo, name, old, new, mainline, log)
+		return err
+	})
+	if err != nil {
+		return Ref{}, nil, fmt.Errorf("insert and cas ref %q: %w", name, err)
+	}
+	return ref, out, nil
+}
+
+// insertChangesets inserts changeset, file and core rows with a few round
+// trips: one pipelined batch of changeset inserts (seq follows the order),
+// then the file and core rows of the inserted ones.
+func insertChangesets(ctx context.Context, tx pgx.Tx, repo RepoID, cs []NewChangeset) (map[hash.ID]Inserted, error) {
+	out := make(map[hash.ID]Inserted, len(cs))
+	if len(cs) == 0 {
+		return out, nil
+	}
+	batch := &pgx.Batch{}
+	for _, c := range cs {
+		if c.Core.ChangesetID != c.Row.ID {
+			return nil, fmt.Errorf("insert changeset %s: core row is for %s", c.Row.ID, c.Core.ChangesetID)
+		}
+		r := c.Row
+		batch.Queue(`
+			INSERT INTO changesets (repo_id, id, parents, body, author, author_time, committer, committer_time, summary, git_sha)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+			ON CONFLICT DO NOTHING
+			RETURNING seq`,
+			repo, r.ID[:], idBytes(r.Parents), r.Body, r.Author, columnTime(r.AuthorTime),
+			r.Committer, columnTime(r.CommitterTime), r.Summary, r.GitSHA)
+	}
+	results := tx.SendBatch(ctx, batch)
+	var existing []hash.ID
+	for _, c := range cs {
+		var seq int64
+		err := results.QueryRow().Scan(&seq)
+		switch {
+		case errors.Is(err, pgx.ErrNoRows):
+			existing = append(existing, c.Row.ID)
+		case err != nil:
+			_ = results.Close()
+			return nil, fmt.Errorf("inserting changeset %s: %w", c.Row.ID, err)
+		default:
+			out[c.Row.ID] = Inserted{Seq: seq, Inserted: true}
+		}
+	}
+	if err := results.Close(); err != nil {
+		return nil, fmt.Errorf("inserting changesets: %w", err)
+	}
+	if len(existing) > 0 {
+		rows, err := tx.Query(ctx, "SELECT id, seq FROM changesets WHERE repo_id = $1 AND id = ANY($2)", repo, idBytes(existing))
+		if err != nil {
+			return nil, fmt.Errorf("reading existing seqs: %w", err)
+		}
+		var (
+			b   []byte
+			seq int64
+		)
+		if _, err := pgx.ForEachRow(rows, []any{&b, &seq}, func() error {
+			id, err := toID(b)
+			out[id] = Inserted{Seq: seq}
+			return err
+		}); err != nil {
+			return nil, fmt.Errorf("reading existing seqs: %w", err)
+		}
+	}
+	var files, cores [][]any
+	for _, c := range cs {
+		ins := out[c.Row.ID]
+		if !ins.Inserted {
+			continue
+		}
+		values, err := fileRowValues(repo, c.Row.ID, c.Files)
+		if err != nil {
+			return nil, fmt.Errorf("insert changeset %s: %w", c.Row.ID, err)
+		}
+		for i := range values {
+			values[i][2] = ins.Seq
+		}
+		files = append(files, values...)
+		k := c.Core
+		cores = append(cores, []any{repo, k.ChangesetID[:], k.RootTree[:], k.Gen, k.FPDepth, nullableID(k.FPParent), k.FPJump[:]})
+	}
+	if len(files) > 0 {
+		if err := insertFiles(ctx, tx, files); err != nil {
+			return nil, err
+		}
+	}
+	if len(cores) > 0 {
+		if _, err := tx.CopyFrom(ctx, pgx.Identifier{"core_derived"},
+			[]string{"repo_id", "changeset_id", "root_tree", "gen", "fp_depth", "fp_parent", "fp_jump"}, pgx.CopyFromRows(cores)); err != nil {
+			return nil, fmt.Errorf("inserting core rows: %w", err)
+		}
+	}
+	return out, nil
+}
+
+// casRef is CASRef inside a transaction.
+func casRef(ctx context.Context, tx pgx.Tx, repo RepoID, name string, old, new hash.ID, mainline MainlineUpdate, log RefLogEntry) (Ref, error) {
+	ref := Ref{Name: name, ID: new}
+	err := func() error {
 		err := tx.QueryRow(ctx, `
 			UPDATE refs SET changeset_id = $4, version = version + 1, updated_at = now()
 			WHERE repo_id = $1 AND name = $2 AND changeset_id = $3
@@ -537,11 +657,8 @@ func (p *PG) CASRef(ctx context.Context, repo RepoID, name string, old, new hash
 			return err
 		}
 		return insertRefLog(ctx, tx, repo, name, ref.Version, old, new, log)
-	})
-	if err != nil {
-		return Ref{}, fmt.Errorf("cas ref %q: %w", name, err)
-	}
-	return ref, nil
+	}()
+	return ref, err
 }
 
 func insertMainline(ctx context.Context, tx pgx.Tx, repo RepoID, ref string, rows []MainlineRow) error {

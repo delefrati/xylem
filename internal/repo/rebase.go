@@ -63,6 +63,9 @@ type RebaseOptions struct {
 	// Time is the attempt's timestamp, shared by every changeset it creates
 	// (default Now).
 	Time int64
+	// pending, if set, receives the rebased changesets in memory instead of
+	// the database (the land batcher), and onto may be one of them.
+	pending *pendingSet
 }
 
 // RebaseResult is the outcome of RebaseStack. On conflict, Conflicts and
@@ -90,7 +93,7 @@ func (r *Repo) RebaseStack(ctx context.Context, stack []hash.ID, onto hash.ID, o
 	if opts.Time == 0 {
 		opts.Time = r.opts.Now().Unix()
 	}
-	found, err := r.Changesets(ctx, append([]hash.ID{onto}, stack...))
+	found, err := opts.pending.changesets(ctx, r, append([]hash.ID{onto}, stack...))
 	if err != nil {
 		return nil, err
 	}
@@ -163,12 +166,20 @@ func (r *Repo) createRebased(ctx context.Context, x *Changeset, parent hash.ID, 
 	if len(committer) == 0 {
 		committer = x.Author.NameEmail
 	}
-	cs, _, err := r.CreateChangeset(ctx, CreateRequest{
-		Parents: []hash.ID{parent}, Author: x.Author, Message: x.Message, Extras: extras, Changes: changes,
-	}, CreateOptions{
+	req := CreateRequest{Parents: []hash.ID{parent}, Author: x.Author, Message: x.Message, Extras: extras, Changes: changes}
+	copts := CreateOptions{
 		Committer:  &changeset.Signature{NameEmail: committer, Time: opts.Time},
 		TrustSizes: true, // sizes come from validated changesets and trees
-	})
+	}
+	if opts.pending != nil {
+		p, _, err := r.build(ctx, opts.pending, req, copts, true)
+		if err != nil {
+			return nil, err
+		}
+		opts.pending.add(p)
+		return p.cs, nil
+	}
+	cs, _, err := r.CreateChangeset(ctx, req, copts)
 	return cs, err
 }
 

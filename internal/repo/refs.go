@@ -68,7 +68,7 @@ func (r *Repo) UpdateRef(ctx context.Context, name string, expected, target hash
 	if expected.IsZero() {
 		var mainline []meta.MainlineRow
 		if tracked {
-			if mainline, err = r.firstParentRows(ctx, newRow, -1); err != nil {
+			if mainline, err = firstParentRows(ctx, r.source, newRow, -1); err != nil {
 				return Ref{}, err
 			}
 		}
@@ -105,7 +105,7 @@ func (r *Repo) UpdateRef(ctx context.Context, name string, expected, target hash
 			}
 			update.Rewind, update.KeepThrough = true, keep
 		}
-		if update.Rows, err = r.firstParentRows(ctx, newRow, keep); err != nil {
+		if update.Rows, err = firstParentRows(ctx, r.source, newRow, keep); err != nil {
 			return Ref{}, err
 		}
 	}
@@ -120,8 +120,8 @@ func (r *Repo) UpdateRef(ctx context.Context, name string, expected, target hash
 }
 
 // firstParentRows returns mainline rows for tip's first-parent chain at depths
-// above keep, walking fp_parent from tip.
-func (r *Repo) firstParentRows(ctx context.Context, tip meta.CoreRow, keep int64) ([]meta.MainlineRow, error) {
+// above keep, walking fp_parent from tip through src.
+func firstParentRows(ctx context.Context, src derived.Source, tip meta.CoreRow, keep int64) ([]meta.MainlineRow, error) {
 	n := tip.FPDepth - keep
 	rows := make([]meta.MainlineRow, 0, max(n, 0))
 	cur := tip
@@ -130,7 +130,7 @@ func (r *Repo) firstParentRows(ctx context.Context, tip meta.CoreRow, keep int64
 		if cur.FPDepth == 0 {
 			break
 		}
-		parent, err := r.source.Core(ctx, []hash.ID{cur.FPParent})
+		parent, err := src.Core(ctx, []hash.ID{cur.FPParent})
 		if err != nil {
 			return nil, err
 		}

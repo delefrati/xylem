@@ -29,6 +29,7 @@ func newServerCmd(g *globalFlags) *cobra.Command {
 		dbURL, storeURL, listen, httpListen string
 		authTokens, rateLimits              string
 		objectCacheBytes, mergeMaxBytes     int64
+		landBatchWindow                     time.Duration
 	)
 	cmd := &cobra.Command{
 		Use:   "server",
@@ -59,7 +60,7 @@ func newServerCmd(g *globalFlags) *cobra.Command {
 			srv := server.New(server.Config{
 				Meta: d.meta, Objects: d.objs, Logger: log, ObjectCacheBytes: objectCacheBytes, Auth: tokens,
 				RateLimits:  limits,
-				RepoOptions: repo.Options{MergeMaxBytes: mergeMaxBytes},
+				RepoOptions: repo.Options{MergeMaxBytes: mergeMaxBytes, LandBatchWindow: landBatchWindow},
 				Ready: func(ctx context.Context) error {
 					if err := d.meta.Ping(ctx); err != nil {
 						return fmt.Errorf("postgres: %w", err)
@@ -80,6 +81,8 @@ func newServerCmd(g *globalFlags) *cobra.Command {
 	cmd.Flags().Int64Var(&mergeMaxBytes, "merge-max-bytes", envInt64("XYLEM_MERGE_MAX_BYTES", repo.DefaultMergeMaxBytes),
 		"largest file side rebase merges line by line; larger ones conflict as a whole (env XYLEM_MERGE_MAX_BYTES)")
 	addAuthTokensFlag(cmd, &authTokens)
+	cmd.Flags().DurationVar(&landBatchWindow, "land-batch-window", envDuration("XYLEM_LAND_BATCH_WINDOW", 0),
+		"collect lands per ref for up to this long and land them with one ref update; 0 = off (env XYLEM_LAND_BATCH_WINDOW)")
 	cmd.Flags().StringVar(&rateLimits, "rate-limits", envOr("XYLEM_RATE_LIMITS", "off"),
 		`per-caller limits on expensive RPCs: "off", "recommended" or e.g. "Blame=5:20,Log=10:40,Diff=10:40,MergeBase=20:80" (rate/s:burst; Log with a path, Diff with hunks) (env XYLEM_RATE_LIMITS)`)
 	cmd.Flags().Int64Var(&objectCacheBytes, "object-cache-bytes", envInt64("XYLEM_OBJECT_CACHE_BYTES", 1<<30), "in-memory object cache size (env XYLEM_OBJECT_CACHE_BYTES)")

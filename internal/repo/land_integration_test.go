@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/delefrati/xylem/internal/changeset"
 	"github.com/delefrati/xylem/internal/hash"
@@ -18,7 +19,20 @@ import (
 // landEnv is a repo whose main points at a root with README and a.txt.
 func landEnv(t *testing.T) (*repotest.Env, *repo.Changeset) {
 	t.Helper()
+	return landEnvWindow(t, 0)
+}
+
+// landEnvWindow is landEnv with the land batcher's window (0: off).
+func landEnvWindow(t *testing.T, window time.Duration) (*repotest.Env, *repo.Changeset) {
+	t.Helper()
 	env := repotest.NewEnv(t, store.NewMem())
+	if window > 0 {
+		r, err := repo.Open(context.Background(), env.Meta, env.Objects, "default", repo.Options{Now: repotest.Clock, LandBatchWindow: window})
+		if err != nil {
+			t.Fatal(err)
+		}
+		env.Repo = r
+	}
 	root := repotest.Commit(t, env.Repo, nil, "root", repotest.Put(t, env.Repo, "README", "r\n"), repotest.Put(t, env.Repo, "a.txt", "a\n"))
 	if _, err := env.Repo.UpdateRef(context.Background(), repo.MainRef, hash.ID{}, root.ID, false, "test", "admin"); err != nil {
 		t.Fatal(err)

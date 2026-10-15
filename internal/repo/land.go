@@ -39,13 +39,19 @@ type LandResult struct {
 // a compare-and-swap (07 §Land), retrying from the original stack with
 // jittered backoff when the tip moved. The ref, mainline rows and ref log
 // change in one transaction. Conflicts are returned in the result, not as an
-// error; running out of attempts is ErrConflict.
+// error; running out of attempts is ErrConflict. With
+// Options.LandBatchWindow set, the request joins its target's batch instead
+// (landbatch.go): Attempts then counts the batch's CAS attempts, and NewTip
+// is the request's own top changeset (the batch may land more above it).
 func (r *Repo) Land(ctx context.Context, stack []hash.ID, opts LandOptions) (*LandResult, error) {
 	if opts.Target == "" {
 		opts.Target = MainRef
 	}
 	if opts.MaxAttempts <= 0 {
 		opts.MaxAttempts = DefaultLandAttempts
+	}
+	if r.lander != nil {
+		return r.lander.land(ctx, stack, opts)
 	}
 	for attempt := 1; attempt <= opts.MaxAttempts; attempt++ {
 		ref, err := r.GetRef(ctx, opts.Target)

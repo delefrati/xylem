@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"sync"
 	"testing"
+	"time"
 
 	"golang.org/x/sync/errgroup"
 
@@ -25,9 +26,13 @@ import (
 // mainline entries and the final tree has every change.
 func TestLandConcurrencyDisjoint(t *testing.T) {
 	t.Parallel()
+	forEachLandMode(t, landConcurrencyDisjoint)
+}
+
+func landConcurrencyDisjoint(t *testing.T, window time.Duration) {
 	const workers, perWorker = 20, 50
 	ctx := context.Background()
-	env, root := landEnv(t)
+	env, root := landEnvWindow(t, window)
 	r := env.Repo
 	start := mainTip(t, r)
 	startRow, err := r.Changeset(ctx, start.ID)
@@ -105,8 +110,12 @@ func TestLandConcurrencyDisjoint(t *testing.T) {
 // gets a content conflict.
 func TestLandConcurrencySameFile(t *testing.T) {
 	t.Parallel()
+	forEachLandMode(t, landConcurrencySameFile)
+}
+
+func landConcurrencySameFile(t *testing.T, window time.Duration) {
 	ctx := context.Background()
-	env, _ := landEnv(t)
+	env, _ := landEnvWindow(t, window)
 	r := env.Repo
 	for round := range 10 {
 		tip := mainTip(t, r)
@@ -151,8 +160,12 @@ func TestLandConcurrencySameFile(t *testing.T) {
 // and main has both edits.
 func TestLandConcurrencySameFileRegions(t *testing.T) {
 	t.Parallel()
+	forEachLandMode(t, landConcurrencySameFileRegions)
+}
+
+func landConcurrencySameFileRegions(t *testing.T, window time.Duration) {
 	ctx := context.Background()
-	env, root := landEnv(t)
+	env, root := landEnvWindow(t, window)
 	r := env.Repo
 	text := func(top, bottom string) string {
 		return top + "\n2\n3\n4\n5\n6\n7\n8\n9\n" + bottom + "\n"
@@ -201,12 +214,16 @@ func TestLandConcurrencySameFileRegions(t *testing.T) {
 }
 
 // TestLandConcurrencyCrash is requirement 3: a failure between the rebased
-// changeset's insert and the CAS leaves only an orphan draft; the ref and
+// changeset's insert and the CAS leaves at most an orphan draft; the ref and
 // the mainline stay consistent, and a later land succeeds.
 func TestLandConcurrencyCrash(t *testing.T) {
 	t.Parallel()
+	forEachLandMode(t, landConcurrencyCrash)
+}
+
+func landConcurrencyCrash(t *testing.T, window time.Duration) {
 	ctx := context.Background()
-	env, root := landEnv(t)
+	env, root := landEnvWindow(t, window)
 	r := env.Repo
 	m1 := repotest.Commit(t, r, []hash.ID{root.ID}, "m1", repotest.Put(t, r, "README", "moved\n"))
 	if _, err := r.UpdateRef(ctx, repo.MainRef, root.ID, m1.ID, false, "test", "admin"); err != nil {
@@ -231,8 +248,10 @@ func TestLandConcurrencyCrash(t *testing.T) {
 	if err := env.Pool.QueryRow(ctx, `SELECT count(*) FROM changesets`).Scan(&countAfter); err != nil {
 		t.Fatal(err)
 	}
-	if countAfter != countBefore+1 {
-		t.Errorf("%d changesets created by the crashed land, want 1 (the rebased draft)", countAfter-countBefore)
+	// Unbatched, the rebased draft was inserted before the CAS; the batcher
+	// inserts changesets in the CAS's transaction, so it leaves none.
+	if want := map[bool]int64{false: 1, true: 0}[window > 0]; countAfter-countBefore != want {
+		t.Errorf("%d changesets created by the crashed land, want %d", countAfter-countBefore, want)
 	}
 	verifyRepo(t, r)
 
@@ -241,6 +260,17 @@ func TestLandConcurrencyCrash(t *testing.T) {
 		t.Fatalf("land after the crash = %+v, %v", res, err)
 	}
 	verifyRepo(t, r)
+}
+
+// forEachLandMode runs a concurrency test with the land batcher off and on
+// (M9.3: the suite must pass both ways).
+func forEachLandMode(t *testing.T, test func(t *testing.T, window time.Duration)) {
+	for _, window := range []time.Duration{0, 20 * time.Millisecond} {
+		t.Run(fmt.Sprintf("batch=%v", window), func(t *testing.T) {
+			t.Parallel()
+			test(t, window)
+		})
+	}
 }
 
 // commitErr creates a single-file changeset on parent without failing the

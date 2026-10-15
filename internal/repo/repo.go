@@ -49,8 +49,15 @@ type Options struct {
 	// OnMerge, if set, is called after each line merge rebase attempts
 	// (metrics).
 	OnMerge func(clean bool)
-	Logger  *slog.Logger
-	Now     func() time.Time // default time.Now
+	// LandBatchWindow, if positive, batches Land requests per target ref
+	// (M9.3): requests arriving within the window are rebased one after
+	// another and land with one ref update.
+	LandBatchWindow time.Duration
+	// OnLandBatch, if set, is called with the number of requests in each
+	// land batch (metrics).
+	OnLandBatch func(requests int)
+	Logger      *slog.Logger
+	Now         func() time.Time // default time.Now
 }
 
 // Repo is one repository. It is safe for concurrent use.
@@ -63,6 +70,7 @@ type Repo struct {
 	source *derived.CachedSource
 	engine *derived.Engine
 	opts   Options
+	lander *landBatcher // nil: unbatched lands
 }
 
 // Open returns the repository called name.
@@ -98,7 +106,7 @@ func Open(ctx context.Context, m meta.Store, objs store.ObjectStore, name string
 	if opts.Now == nil {
 		opts.Now = time.Now
 	}
-	return &Repo{
+	r := &Repo{
 		name:   name,
 		id:     id,
 		meta:   m,
@@ -107,7 +115,11 @@ func Open(ctx context.Context, m meta.Store, objs store.ObjectStore, name string
 		source: derived.NewCachedSource(m, id, opts.CoreCacheSize),
 		engine: derived.NewEngine(m, id, objs, opts.DerivedCache),
 		opts:   opts,
-	}, nil
+	}
+	if opts.LandBatchWindow > 0 {
+		r.lander = newLandBatcher(r, opts.LandBatchWindow)
+	}
+	return r, nil
 }
 
 // Name returns the repository name.

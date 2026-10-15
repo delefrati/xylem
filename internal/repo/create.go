@@ -67,6 +67,41 @@ const maxMissingListed = 20
 // stored changeset and whether it already existed. Concurrent creates of the
 // same changeset are safe: one inserts, the others report already existed.
 func (r *Repo) CreateChangeset(ctx context.Context, req CreateRequest, opts CreateOptions) (*Changeset, bool, error) {
+	p, existing, err := r.build(ctx, r.source, req, opts, false)
+	if err != nil || existing != nil {
+		return existing, existing != nil, err
+	}
+	// 10. Transaction.
+	seq, inserted, err := r.meta.InsertChangeset(ctx, r.id, p.row, p.files, p.cs.Core)
+	if err != nil {
+		return nil, false, err
+	}
+	r.cacheInserted(p)
+	p.cs.Seq = seq
+	return p.cs, !inserted, nil
+}
+
+// prepared is a changeset built by build (its trees stored, its core row
+// computed) but not inserted yet.
+type prepared struct {
+	cs    *Changeset // Seq is unset
+	row   meta.ChangesetRow
+	files []meta.FileRow
+}
+
+// cacheInserted records an inserted changeset's core row and parents.
+func (r *Repo) cacheInserted(p *prepared) {
+	r.source.AddCore(p.cs.Core)
+	r.source.AddParents(p.cs.ID, p.cs.Parents)
+}
+
+// build runs CreateChangeset's steps 1–9 and 11: validate, check blobs,
+// encode, apply the changes (storing new trees) and compute the core row,
+// reading parents through src. If the changeset already exists it returns
+// that instead. inMemory is the land batcher's mode (src may hold changesets
+// not inserted yet): no idempotency check (the batch's insert tolerates
+// existing rows) and no blob checks (rebases reuse validated blobs).
+func (r *Repo) build(ctx context.Context, src derived.Source, req CreateRequest, opts CreateOptions, inMemory bool) (*prepared, *Changeset, error) {
 	// 1–2. Canonicalize and validate shape (Encode sorts copies of changes).
 	cs := changeset.Changeset{
 		Parents: req.Parents,
@@ -76,25 +111,25 @@ func (r *Repo) CreateChangeset(ctx context.Context, req CreateRequest, opts Crea
 		Changes: req.Changes,
 	}
 	if err := cs.ValidateShape(changeset.ShapeOptions{AllowEmpty: opts.AllowEmpty}); err != nil {
-		return nil, false, fmt.Errorf("%w: %w", ErrInvalid, err)
+		return nil, nil, fmt.Errorf("%w: %w", ErrInvalid, err)
 	}
 	for _, ch := range cs.Changes {
 		if ch.Op == changeset.OpPut && ch.Size > r.opts.MaxBlobSize {
-			return nil, false, fmt.Errorf("%w: %q is %d bytes, max %d", ErrInvalid, ch.Path, ch.Size, r.opts.MaxBlobSize)
+			return nil, nil, fmt.Errorf("%w: %q is %d bytes, max %d", ErrInvalid, ch.Path, ch.Size, r.opts.MaxBlobSize)
 		}
 	}
 	gitSHA, err := gitSHAExtra(cs.Extras)
 	if err != nil {
-		return nil, false, err
+		return nil, nil, err
 	}
 	// 4. Load parents (fails fast on unknown parents).
-	parentRows, err := r.source.Core(ctx, cs.Parents)
+	parentRows, err := src.Core(ctx, cs.Parents)
 	if err != nil {
-		return nil, false, err
+		return nil, nil, err
 	}
 	for _, p := range cs.Parents {
 		if _, ok := parentRows[p]; !ok {
-			return nil, false, fmt.Errorf("%w: parent %s", ErrNotFound, p)
+			return nil, nil, fmt.Errorf("%w: parent %s", ErrNotFound, p)
 		}
 	}
 	baseTree := treeops.EmptyTree
@@ -103,8 +138,10 @@ func (r *Repo) CreateChangeset(ctx context.Context, req CreateRequest, opts Crea
 	}
 
 	// 3. Blobs exist and declared sizes match.
-	if err := r.checkBlobs(ctx, baseTree, cs.Changes, opts.TrustSizes); err != nil {
-		return nil, false, err
+	if !inMemory {
+		if err := r.checkBlobs(ctx, baseTree, cs.Changes, opts.TrustSizes); err != nil {
+			return nil, nil, err
+		}
 	}
 
 	// 5–6. Committer, encode, id.
@@ -118,19 +155,21 @@ func (r *Repo) CreateChangeset(ctx context.Context, req CreateRequest, opts Crea
 	}
 	body, err := cs.Encode()
 	if err != nil {
-		return nil, false, fmt.Errorf("%w: %w", ErrInvalid, err)
+		return nil, nil, fmt.Errorf("%w: %w", ErrInvalid, err)
 	}
 	id := object.ID(object.KindChangeset, body)
 
 	// 7. Fast idempotency check.
-	if existing, err := r.existing(ctx, id); err != nil || existing != nil {
-		return existing, existing != nil, err
+	if !inMemory {
+		if existing, err := r.existing(ctx, id); err != nil || existing != nil {
+			return nil, existing, err
+		}
 	}
 	// A new root needs an empty repo (checked after step 7, so retrying the
 	// creation of an existing root is idempotent).
 	if len(cs.Parents) == 0 && !opts.AllowRoot {
 		if err := r.requireEmpty(ctx); err != nil {
-			return nil, false, err
+			return nil, nil, err
 		}
 	}
 
@@ -139,29 +178,28 @@ func (r *Repo) CreateChangeset(ctx context.Context, req CreateRequest, opts Crea
 	if err != nil {
 		if errors.Is(err, treeops.ErrDeleteMissing) || errors.Is(err, treeops.ErrNoopPut) ||
 			errors.Is(err, treeops.ErrDuplicatePath) || errors.As(err, new(*treeops.FileDirClashError)) {
-			return nil, false, fmt.Errorf("%w: %w", ErrInvalid, err)
+			return nil, nil, fmt.Errorf("%w: %w", ErrInvalid, err)
 		}
-		return nil, false, err
+		return nil, nil, err
 	}
 	for _, nt := range newTrees {
 		if err := r.objs.Put(ctx, nt.ID, nt.Stored); err != nil {
-			return nil, false, fmt.Errorf("storing tree %s: %w", nt.ID, err)
+			return nil, nil, fmt.Errorf("storing tree %s: %w", nt.ID, err)
 		}
 		r.trees.Add(nt.ID, nt.Tree)
 	}
 	if root == treeops.EmptyTree {
 		if err := r.ensureEmptyTree(ctx); err != nil {
-			return nil, false, fmt.Errorf("storing the empty tree: %w", err)
+			return nil, nil, fmt.Errorf("storing the empty tree: %w", err)
 		}
 	}
 
 	// 9. Core derived data.
-	core, err := derived.ComputeCore(ctx, r.source, id, cs.Parents, root)
+	core, err := derived.ComputeCore(ctx, src, id, cs.Parents, root)
 	if err != nil {
-		return nil, false, err
+		return nil, nil, err
 	}
 
-	// 10. Transaction.
 	row := meta.ChangesetRow{
 		ID: id, Parents: cs.Parents, Body: body,
 		Author: cs.Author.NameEmail, AuthorTime: cs.Author.Time,
@@ -172,19 +210,13 @@ func (r *Repo) CreateChangeset(ctx context.Context, req CreateRequest, opts Crea
 	for i, ch := range cs.Changes {
 		files[i] = meta.FileRow{Path: ch.Path, Op: ch.Op, Mode: ch.Mode, Size: ch.Size, Blob: ch.Blob}
 	}
-	seq, inserted, err := r.meta.InsertChangeset(ctx, r.id, row, files, core)
-	if err != nil {
-		return nil, false, err
-	}
-	r.source.AddCore(core)
-	r.source.AddParents(id, cs.Parents)
 
-	// 11. Return the canonical changeset.
+	// 11. The canonical changeset.
 	stored, err := changeset.Decode(body)
 	if err != nil {
-		return nil, false, err
+		return nil, nil, err
 	}
-	return &Changeset{Changeset: *stored, ID: id, Seq: seq, Core: core}, !inserted, nil
+	return &prepared{cs: &Changeset{Changeset: *stored, ID: id, Core: core}, row: row, files: files}, nil, nil
 }
 
 // requireEmpty fails unless the repository has no changesets.

@@ -36,6 +36,7 @@ type rpcMetrics struct {
 	mergeClean    prometheus.Counter
 	mergeConflict prometheus.Counter
 	rateLimited   *prometheus.CounterVec
+	landBatch     prometheus.Histogram
 }
 
 func newRPCMetrics(reg prometheus.Registerer) *rpcMetrics {
@@ -67,7 +68,12 @@ func newRPCMetrics(reg prometheus.Registerer) *rpcMetrics {
 		Name: "xylem_rate_limited_total",
 		Help: "Calls rejected by a per-caller rate limit, by RPC (M9.2).",
 	}, []string{"rpc"})
-	reg.MustRegister(m.duration, m.landAttempts, m.landConflicts, m.mergeClean, m.mergeConflict, m.rateLimited)
+	m.landBatch = prometheus.NewHistogram(prometheus.HistogramOpts{
+		Name:    "xylem_land_batch_requests",
+		Help:    "Land requests per batch when the land batcher is on (M9.3).",
+		Buckets: []float64{1, 2, 5, 10, 20, 50, 100},
+	})
+	reg.MustRegister(m.duration, m.landAttempts, m.landConflicts, m.mergeClean, m.mergeConflict, m.rateLimited, m.landBatch)
 	return m
 }
 

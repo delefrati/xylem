@@ -92,6 +92,13 @@ func New(cfg Config) *Server {
 			next(clean)
 		}
 	}
+	nextBatch := cfg.RepoOptions.OnLandBatch
+	cfg.RepoOptions.OnLandBatch = func(n int) {
+		metrics.landBatch.Observe(float64(n))
+		if nextBatch != nil {
+			nextBatch(n)
+		}
+	}
 	s := &Server{
 		cfg: cfg, log: cfg.Logger, metrics: metrics,
 		objects: cache.NewMemory(cfg.ObjectCacheBytes), repos: map[string]*repo.Repo{},

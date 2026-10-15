@@ -95,9 +95,16 @@ Land(stack, target="main", max_attempts=10):
 - **Backoff:** `jitter(n) = rand(0, min(200ms, 5ms·2^n))`.
 - **Post-merge testing model:** there is no pre-merge serialization and no merge queue lock. Correctness under concurrency is guaranteed only at the file level (the conflict table). Semantic breakage is caught by post-merge CI (see `13-future.md`). This follows Scion's lesson that a global merge-queue lock doesn't scale to agent-level throughput.
 
-### Contention mitigation (post-MVP, documented now)
+### Contention mitigation: the land batcher (M9.3)
 
-When land QPS on one ref is high, CAS retries waste work. The planned fix is an in-server **land batcher**: a single goroutine per (repo, ref) per server collects requests for up to 20 ms, rebases them sequentially onto the tip in-memory, and performs one CAS for the whole batch. Requests that conflict within the batch are answered individually. Multiple servers still race via CAS, but each server's land rate collapses into roughly 50 CAS/s.
+When land QPS on one ref is high, CAS retries waste work. With `--land-batch-window` (e.g. `20ms`; default 0 = off) the server runs a **land batcher**: a single goroutine per (repo, ref) collects requests, rebases them sequentially onto the tip in memory, and performs one CAS for the whole batch. Multiple servers still race via CAS, but each server's land rate collapses into one CAS per batch.
+
+- **Collecting.** A batch starts when the window since its oldest request has passed, when 100 requests wait, or as soon as as many requests wait as the previous batch had (when that was ≥ 2: the same landers are back, so waiting longer only adds latency).
+- **Rebasing.** Requests are rebased in arrival order, each onto the tip as advanced by the ones before it. Trees and merged blobs go to the object store as usual; the rebased changesets are held in memory. A request whose rebase fails (unknown stack, cancelled caller) is answered with its error and leaves the batch.
+- **Committing.** One transaction inserts every rebased changeset, moves the ref (CAS), writes the mainline rows and one ref-log entry (actor: the batch's callers, comma-separated). A lost CAS writes nothing; the whole batch is retried onto the new tip, and a request that runs out of its `max_attempts` gets `Aborted`.
+- **Answers.** Conflicts and landings are answered only after the CAS succeeds, so a conflict is always against what actually landed (possibly an earlier request of the same batch). `new_tip` is the request's own top changeset (later requests of the batch may sit above it); `attempts` counts the batch's CAS attempts.
+- **Metrics.** `xylem_land_batch_requests` (histogram of requests per batch).
+- **Measured** (`make bench-land`: 50 concurrent landers through gRPC, 1,000 single-changeset lands that all rebase, local Postgres): ~400 lands/s and ~2.6 CAS attempts per land without the batcher; ~1,550 lands/s and 1.00 with a 20 ms window (3.8–4.0×).
 
 ## UpdateRef (admin)
 

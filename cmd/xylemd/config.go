@@ -6,6 +6,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/spf13/cobra"
 )
@@ -29,6 +30,17 @@ func envInt64(key string, def int64) int64 {
 	if v, ok := os.LookupEnv(key); ok {
 		if n, err := strconv.ParseInt(v, 10, 64); err == nil {
 			return n
+		}
+	}
+	return def
+}
+
+// envDuration returns the duration environment variable key ("20ms"), or
+// def if unset or invalid.
+func envDuration(key string, def time.Duration) time.Duration {
+	if v, ok := os.LookupEnv(key); ok {
+		if d, err := time.ParseDuration(v); err == nil {
+			return d
 		}
 	}
 	return def

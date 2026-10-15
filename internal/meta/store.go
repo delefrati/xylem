@@ -115,6 +115,19 @@ type DerivedKey struct {
 }
 
 // Store is the metadata store. Implementations are safe for concurrent use.
+// NewChangeset is a changeset row with its file rows and core row.
+type NewChangeset struct {
+	Row   ChangesetRow
+	Files []FileRow
+	Core  CoreRow
+}
+
+// Inserted reports a changeset's seq and whether this call inserted it.
+type Inserted struct {
+	Seq      int64
+	Inserted bool
+}
+
 type Store interface {
 	CreateRepo(ctx context.Context, name string) (RepoID, error)
 	LookupRepo(ctx context.Context, name string) (RepoID, error)
@@ -151,6 +164,11 @@ type Store interface {
 	// in the same transaction. It fails with ErrCASMismatch if the ref no
 	// longer points at old.
 	CASRef(ctx context.Context, repo RepoID, name string, old, new hash.ID, mainline MainlineUpdate, log RefLogEntry) (Ref, error)
+	// InsertAndCASRef inserts changesets (in order, each after its parents;
+	// existing ones are kept) and then does CASRef, all in one transaction:
+	// on ErrCASMismatch nothing is written. It returns each changeset's seq
+	// and whether it was inserted. (The land batcher, M9.3.)
+	InsertAndCASRef(ctx context.Context, repo RepoID, cs []NewChangeset, name string, old, new hash.ID, mainline MainlineUpdate, log RefLogEntry) (Ref, map[hash.ID]Inserted, error)
 
 	// MainlineLookup returns the mainline depth of each id that is on ref's mainline.
 	MainlineLookup(ctx context.Context, repo RepoID, ref string, ids []hash.ID) (map[hash.ID]int64, error)
