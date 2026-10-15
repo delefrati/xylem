@@ -84,6 +84,7 @@ volumes: { pgdata: {}, miniodata: {} }
 | `--listen` | `XYLEM_LISTEN` | `:7400` | gRPC |
 | `--http-listen` | `XYLEM_HTTP_LISTEN` | `:7401` | health, metrics |
 | `--object-cache-bytes` | `XYLEM_OBJECT_CACHE_BYTES` | `1073741824` | in-memory LRU |
+| `--merge-max-bytes` | `XYLEM_MERGE_MAX_BYTES` | `8388608` | largest file side rebase merges line by line (M7); larger ones conflict as a whole |
 | `--log-level` | `XYLEM_LOG_LEVEL` | `info` | |
 | `--auth-token` | `XYLEM_AUTH_TOKEN` | empty (disabled) | M9 |
 

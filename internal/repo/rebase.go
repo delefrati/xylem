@@ -8,6 +8,7 @@ import (
 
 	"github.com/delefrati/xylem/internal/changeset"
 	"github.com/delefrati/xylem/internal/hash"
+	"github.com/delefrati/xylem/internal/merge"
 	"github.com/delefrati/xylem/internal/object"
 	"github.com/delefrati/xylem/internal/treeops"
 )
@@ -45,10 +46,13 @@ func (k ConflictKind) String() string {
 
 // Conflict is one conflicting path. Ours is the onto side and Theirs the
 // stack change's result; a zero id means the side has no file there.
+// Regions counts the conflicting line regions of a failed line merge; 0
+// means the whole file conflicts.
 type Conflict struct {
 	Path               []byte
 	Kind               ConflictKind
 	Base, Ours, Theirs hash.ID
+	Regions            int
 }
 
 // RebaseOptions identify the rebase attempt.
@@ -182,9 +186,15 @@ func (r *Repo) rebaseChanges(ctx context.Context, changes []changeset.Change, ba
 			return nil, nil, err
 		}
 		res, kind := ResolveChange(b, o, ch)
+		regions := 0
+		if kind == ConflictContent || kind == ConflictAddAdd {
+			if res, kind, regions, err = r.mergeLines(ctx, b, o, ch, kind); err != nil {
+				return nil, nil, err
+			}
+		}
 		switch {
 		case kind != 0:
-			c := Conflict{Path: ch.Path, Kind: kind}
+			c := Conflict{Path: ch.Path, Kind: kind, Regions: regions}
 			if b != nil && b.Mode != object.ModeTree {
 				c.Base = b.ID
 			}
@@ -200,6 +210,73 @@ func (r *Repo) rebaseChanges(ctx context.Context, changes []changeset.Change, ba
 		}
 	}
 	return out, conflicts, nil
+}
+
+// mergeLines tries a three-way line merge (M7) for a change that conflicts
+// on content (or adds a file onto has added too, merged against an empty
+// base). Only regular files are merged, within MergeMaxBytes per side, and
+// the modes must merge too. On success it stores the merged blob and returns
+// its PUT (or nil if onto already has the result); otherwise it returns the
+// conflict kind, with the number of conflicting regions when the line merge
+// itself failed.
+func (r *Repo) mergeLines(ctx context.Context, b, o *object.Entry, ch changeset.Change, kind ConflictKind) (*changeset.Change, ConflictKind, int, error) {
+	if b != nil && b.Mode == object.ModeTree {
+		b = nil
+	}
+	regular := func(e *object.Entry) bool { return e.Mode == object.ModeFile || e.Mode == object.ModeExec }
+	limit := uint64(max(r.opts.MergeMaxBytes, 0)) //nolint:gosec // G115: non-negative
+	small := func(e *object.Entry) bool { return e == nil || e.Size <= limit }
+	x := &object.Entry{Mode: ch.Mode, ID: ch.Blob, Size: ch.Size}
+	if ch.Op != changeset.OpPut || o == nil || !regular(o) || !regular(x) || b != nil && !regular(b) ||
+		r.opts.MergeMaxBytes < 0 || !small(b) || !small(o) || !small(x) {
+		return nil, kind, 0, nil
+	}
+	mode := x.Mode
+	if b == nil {
+		if o.Mode != x.Mode {
+			return nil, kind, 0, nil
+		}
+	} else if m, ok := pick(b.Mode, o.Mode, x.Mode); ok {
+		mode = m
+	} else {
+		return nil, ConflictMode, 0, nil
+	}
+	var base []byte
+	if b != nil {
+		var err error
+		if base, err = r.blob(ctx, b.ID); err != nil {
+			return nil, 0, 0, err
+		}
+	}
+	ours, err := r.blob(ctx, o.ID)
+	if err != nil {
+		return nil, 0, 0, err
+	}
+	theirs, err := r.blob(ctx, x.ID)
+	if err != nil {
+		return nil, 0, 0, err
+	}
+	merged, regions, err := merge.Merge3(base, ours, theirs)
+	if errors.Is(err, merge.ErrBinary) {
+		return nil, kind, 0, nil
+	}
+	if err != nil {
+		return nil, 0, 0, err
+	}
+	if r.opts.OnMerge != nil {
+		r.opts.OnMerge(len(regions) == 0)
+	}
+	if len(regions) > 0 {
+		return nil, kind, len(regions), nil
+	}
+	id, stored := object.Encode(object.KindBlob, merged)
+	if id == o.ID && mode == o.Mode {
+		return nil, 0, 0, nil // onto already has the merged result
+	}
+	if err := r.objs.Put(ctx, id, stored); err != nil {
+		return nil, 0, 0, err
+	}
+	return &changeset.Change{Path: ch.Path, Op: changeset.OpPut, Mode: mode, Blob: id, Size: uint64(len(merged))}, 0, 0, nil
 }
 
 // entry returns the entry at path, or nil if there is none.

@@ -52,6 +52,9 @@ type Conflict struct {
 	Base   string `json:"base_blob,omitempty"`
 	Ours   string `json:"ours_blob,omitempty"`   // the target (main) side
 	Theirs string `json:"theirs_blob,omitempty"` // the stack side
+	// Regions counts conflicting line regions when a line merge was
+	// attempted; 0 means the whole file conflicts.
+	Regions int `json:"regions,omitempty"`
 }
 
 // ConflictError reports conflicts; nothing moved (exit 3).
@@ -68,7 +71,11 @@ func (e *ConflictError) Error() string {
 func (e *ConflictError) Table() string {
 	var b strings.Builder
 	for _, c := range e.Conflicts {
-		fmt.Fprintf(&b, "%-15s %s\n", c.Kind, QuotePath(c.Path))
+		kind := c.Kind
+		if c.Regions > 0 {
+			kind = fmt.Sprintf("%s (%d)", c.Kind, c.Regions)
+		}
+		fmt.Fprintf(&b, "%-15s %s\n", kind, QuotePath(c.Path))
 	}
 	return b.String()
 }
@@ -82,7 +89,7 @@ var conflictNames = map[xylemv1.Conflict_Kind]string{
 func conflictError(id []byte, cs []*xylemv1.Conflict) error {
 	e := &ConflictError{Changeset: HexID(id)}
 	for _, c := range cs {
-		cf := Conflict{Path: c.GetPath(), Kind: conflictNames[c.GetKind()]}
+		cf := Conflict{Path: c.GetPath(), Kind: conflictNames[c.GetKind()], Regions: int(c.GetRegionCount())}
 		if len(c.GetBaseBlob()) > 0 {
 			cf.Base = HexID(c.GetBaseBlob())
 		}

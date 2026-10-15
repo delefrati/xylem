@@ -14,6 +14,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/delefrati/xylem/internal/hash"
+	"github.com/delefrati/xylem/internal/repo"
 	"github.com/delefrati/xylem/internal/server"
 	"github.com/delefrati/xylem/internal/treeops"
 )
@@ -24,7 +25,7 @@ const drainTimeout = 10 * time.Second
 func newServerCmd(g *globalFlags) *cobra.Command {
 	var (
 		dbURL, storeURL, listen, httpListen string
-		objectCacheBytes                    int64
+		objectCacheBytes, mergeMaxBytes     int64
 	)
 	cmd := &cobra.Command{
 		Use:   "server",
@@ -43,6 +44,7 @@ func newServerCmd(g *globalFlags) *cobra.Command {
 			defer d.Close()
 			srv := server.New(server.Config{
 				Meta: d.meta, Objects: d.objs, Logger: log, ObjectCacheBytes: objectCacheBytes,
+				RepoOptions: repo.Options{MergeMaxBytes: mergeMaxBytes},
 				Ready: func(ctx context.Context) error {
 					if err := d.meta.Ping(ctx); err != nil {
 						return fmt.Errorf("postgres: %w", err)
@@ -60,6 +62,8 @@ func newServerCmd(g *globalFlags) *cobra.Command {
 	addStoreFlag(cmd, &storeURL)
 	cmd.Flags().StringVar(&listen, "listen", envOr("XYLEM_LISTEN", ":7400"), "gRPC address (env XYLEM_LISTEN)")
 	cmd.Flags().StringVar(&httpListen, "http-listen", envOr("XYLEM_HTTP_LISTEN", ":7401"), "HTTP address for /healthz, /readyz, /metrics (env XYLEM_HTTP_LISTEN)")
+	cmd.Flags().Int64Var(&mergeMaxBytes, "merge-max-bytes", envInt64("XYLEM_MERGE_MAX_BYTES", repo.DefaultMergeMaxBytes),
+		"largest file side rebase merges line by line; larger ones conflict as a whole (env XYLEM_MERGE_MAX_BYTES)")
 	cmd.Flags().Int64Var(&objectCacheBytes, "object-cache-bytes", envInt64("XYLEM_OBJECT_CACHE_BYTES", 1<<30), "in-memory object cache size (env XYLEM_OBJECT_CACHE_BYTES)")
 	return cmd
 }

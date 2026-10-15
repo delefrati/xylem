@@ -32,6 +32,9 @@ var (
 // object format: blobs over 64 MiB are rejected in the MVP).
 const DefaultMaxBlobSize = 64 << 20
 
+// DefaultMergeMaxBytes is Options.MergeMaxBytes' default (M7.3).
+const DefaultMergeMaxBytes = 8 << 20
+
 // Options configures a Repo.
 type Options struct {
 	MaxBlobSize    uint64 // default DefaultMaxBlobSize
@@ -39,8 +42,15 @@ type Options struct {
 	CoreCacheSize  int    // core rows and parent lists; default 1M
 	DerivedCache   int    // lazily derived values (blame); default 100k
 	SizeCheckLimit int    // concurrent blob header reads; default 16
-	Logger         *slog.Logger
-	Now            func() time.Time // default time.Now
+	// MergeMaxBytes is the largest side (base, ours or theirs) rebase merges
+	// line by line; larger files conflict as a whole. Default
+	// DefaultMergeMaxBytes; negative disables line merges.
+	MergeMaxBytes int64
+	// OnMerge, if set, is called after each line merge rebase attempts
+	// (metrics).
+	OnMerge func(clean bool)
+	Logger  *slog.Logger
+	Now     func() time.Time // default time.Now
 }
 
 // Repo is one repository. It is safe for concurrent use.
@@ -66,6 +76,9 @@ func Open(ctx context.Context, m meta.Store, objs store.ObjectStore, name string
 	}
 	if opts.MaxBlobSize == 0 {
 		opts.MaxBlobSize = DefaultMaxBlobSize
+	}
+	if opts.MergeMaxBytes == 0 {
+		opts.MergeMaxBytes = DefaultMergeMaxBytes
 	}
 	if opts.TreeCacheSize == 0 {
 		opts.TreeCacheSize = 100_000

@@ -84,7 +84,7 @@ func TestStackSyncLandCommands(t *testing.T) {
 	write(b, "README", "b\n")
 	runOK(t, "-C", b, "commit", "-m", "b one")
 	out, err := runXY("-C", b, "land")
-	if client.ExitCode(err) != client.ExitConflict || !strings.Contains(out, "content         README\n") {
+	if client.ExitCode(err) != client.ExitConflict || !strings.Contains(out, "content (1)     README\n") {
 		t.Errorf("conflicting land: %q, %v", out, err)
 	}
 	out, err = runXY("-C", b, "sync", "--json")

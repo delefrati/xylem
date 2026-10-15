@@ -85,7 +85,7 @@ var conflictKinds = map[repo.ConflictKind]xylemv1.Conflict_Kind{
 func toProtoConflicts(cs []repo.Conflict) []*xylemv1.Conflict {
 	out := make([]*xylemv1.Conflict, len(cs))
 	for i, c := range cs {
-		pc := &xylemv1.Conflict{Path: c.Path, Kind: conflictKinds[c.Kind]}
+		pc := &xylemv1.Conflict{Path: c.Path, Kind: conflictKinds[c.Kind], RegionCount: clampUint32(c.Regions)}
 		if !c.Base.IsZero() {
 			pc.BaseBlob = c.Base[:]
 		}
