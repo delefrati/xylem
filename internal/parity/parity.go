@@ -21,7 +21,7 @@ import (
 )
 
 // Check names, in report order.
-var AllChecks = []string{"tree", "log", "log-path", "diff-names", "diff-content", "blame", "merge-base", "is-ancestor", "read-file"}
+var AllChecks = []string{"tree", "log", "log-path", "diff-names", "diff-content", "blame", "merge-base", "is-ancestor", "read-file", "clone"}
 
 // Options configures a parity run.
 type Options struct {
@@ -107,6 +107,7 @@ func (r *Report) WriteJSON(path string) error {
 type Clients struct {
 	Repo   xylemv1.RepoServiceClient
 	Object xylemv1.ObjectServiceClient
+	Addr   string // server address, for the clone check (which runs xy's client)
 }
 
 // run holds the state of one parity run.
@@ -159,6 +160,7 @@ func Run(ctx context.Context, git *gitsource.Repo, x Clients, opts Options) (*Re
 		"tree": r.checkTree, "log": r.checkLog, "log-path": r.checkLogPath,
 		"diff-names": r.checkDiffNames, "diff-content": r.checkDiffContent, "blame": r.checkBlame,
 		"merge-base": r.checkMergeBase, "is-ancestor": r.checkIsAncestor, "read-file": r.checkReadFile,
+		"clone": r.checkClone,
 	}
 	for _, name := range AllChecks {
 		if !slices.Contains(opts.Checks, name) {

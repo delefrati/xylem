@@ -70,7 +70,7 @@ func TestParity(t *testing.T) {
 			}
 			defer func() { _ = conn.Close() }()
 
-			report, err := parity.Run(ctx, src, parity.Clients{Repo: xylemv1.NewRepoServiceClient(conn), Object: xylemv1.NewObjectServiceClient(conn)},
+			report, err := parity.Run(ctx, src, parity.Clients{Repo: xylemv1.NewRepoServiceClient(conn), Object: xylemv1.NewObjectServiceClient(conn), Addr: lis.Addr().String()},
 				parity.Options{Commits: tc.commits, BlameThreshold: tc.blameThreshold})
 			if err != nil {
 				t.Fatal(err)

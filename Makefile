@@ -83,8 +83,8 @@ parity: ## Git parity suite: import each fixture, serve it in process, compare e
 parity-external: ## Git parity suite on testdata/external (M4)
 	@echo "parity-external: not yet implemented (M4)"
 
-e2e: ## CLI end-to-end tests (M5)
-	@echo "e2e: not yet implemented (M5)"
+e2e: ## CLI end-to-end tests: the real xy binary against an in-process server (needs make up)
+	go test -tags e2e -count=1 -timeout 10m ./test/e2e/...
 
 FIXTURES := testdata/fixtures
 

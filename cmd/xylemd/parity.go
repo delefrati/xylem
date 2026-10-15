@@ -49,7 +49,7 @@ func newParityCmd(_ *globalFlags) *cobra.Command {
 			if checks != "" {
 				opts.Checks = strings.Split(checks, ",")
 			}
-			rep, err := parity.Run(ctx, src, parity.Clients{Repo: xylemv1.NewRepoServiceClient(conn), Object: xylemv1.NewObjectServiceClient(conn)}, opts)
+			rep, err := parity.Run(ctx, src, parity.Clients{Repo: xylemv1.NewRepoServiceClient(conn), Object: xylemv1.NewObjectServiceClient(conn), Addr: addr}, opts)
 			if err != nil {
 				return err
 			}

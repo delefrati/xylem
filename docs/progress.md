@@ -4,9 +4,9 @@ Maintained by the implementing agent. Newest entries first within each section.
 
 ## Status
 
-- **Current milestone:** M5 — Client read path
+- **Current milestone:** M5 — Client read path (complete, awaiting human review)
 - **Last checkpoint approved by human:** M4 — 2026-10-14 (M3, M2, M1, golden vectors and M0 approved 2026-10-14)
-- **Blocked on:** —
+- **Blocked on:** human review of M5
 
 ## Open questions (for the human)
 
@@ -17,8 +17,9 @@ Maintained by the implementing agent. Newest entries first within each section.
 ## Deviations from spec
 
 <!-- - YYYY-MM-DD M2.4: <what changed, why, doc updated: 04-derived-data.md> -->
-- - M5.10: sparse rules the spec left open: `sparse add`/`remove` on a full checkout is a usage error (exit 2), as is removing the last directory (an empty profile means a full checkout). Adding a directory already covered is a no-op; adding a parent replaces the entries under it. `remove` takes exact entries only.
-- - M5.9: the `xy blame` line format is `<short id> (<author> <date> <line no>) <content>`, as in git; 06 lacked the opening parenthesis (doc updated).
+- 2026-10-14 M5.11: the clone parity check runs at the branch tip (full + 3 random profiles of 1–3 directories, seeded) and counts each expected or unexpected file as one comparison; `parity.Clients` gained `Addr` because the check runs the real client (so `xylemd parity` now links internal/client). The e2e test uses only `xy` as a binary; the server runs in process (servertest), so `make e2e` needs Postgres but not MinIO.
+- 2026-10-14 M5.10: sparse rules the spec left open: `sparse add`/`remove` on a full checkout is a usage error (exit 2), as is removing the last directory (an empty profile means a full checkout). Adding a directory already covered is a no-op; adding a parent replaces the entries under it. `remove` takes exact entries only.
+- 2026-10-14 M5.9: the `xy blame` line format is `<short id> (<author> <date> <line no>) <content>`, as in git; 06 lacked the opening parenthesis (doc updated).
 - 2026-10-14 M5.6: the dirstate records the root tree it describes; a dirstate whose root differs from state.json is stale and rebuilt by hashing, which makes every crash window safe (files → dirstate → state.json): status then reports the partial checkout as modifications. Scope changes reconcile the wanted file list against the dirstate instead of a tree diff (equal subtrees can change scope membership). A directory in the way of a new file is dirty only if it holds untracked or modified files. Working-tree directories are created 0755 (`//nolint:gosec` G301).
 - 2026-10-14 M5.3: the local cache uses each file's mtime as its last-access clock (stamped on every read) instead of atime, which relatime/noatime mounts do not maintain reliably; EnsureLimit walks the cache (O(objects)) and evicts to 90% of cache_max_bytes.
 - 2026-10-14 M5.2: paths in state.json (sparse, added) are JSON strings when valid UTF-8 and {"base64": …} otherwise (JSON cannot carry arbitrary bytes; ADR-015); the workspace lock is non-blocking (a second mutating xy fails fast with "workspace is locked"); hash.ID gained MarshalText/UnmarshalText (hex; not hash-affecting).
@@ -55,6 +56,19 @@ Maintained by the implementing agent. Newest entries first within each section.
 - 2026-10-14 M0.2: client CLI lives in `cmd/xy` (M0.2, binary name), not `cmd/xylem` as the layout tree said; doc updated: 02-architecture.md
 
 ## Milestone results
+
+### M5 — 2026-10-14
+
+Verified on the M5.11 commit: `make up && make check && make parity && make e2e` → exit 0.
+
+| Acceptance criterion | Evidence | Result |
+|---|---|---|
+| Clone parity 100% on tiny, edge and branchy (full and sparse) | `make parity` clone row: tiny 14/14 files, edge 74/74, branchy 461/461 (full + 3 random sparse profiles each, vs `git archive`, incl. exec bits and symlink targets) | ✅ |
+| A sparse clone fetches only trees on the path to and under the profile, plus their blobs (server counter) | `TestFetchFullAndSparse`: the sparse fetch of internal/api on branchy reads exactly 3 trees (root, internal, internal/api) plus the in-scope blobs, counted by servertest's CountingStore | ✅ |
+| `xy status` on an unchanged branchy checkout < 200 ms after the first run | `TestStatusFast`: 0.9–1.2 ms (12 ms with -race) for 289 files | ✅ |
+| Crash simulation: status reports the partial changes and `checkout --force` recovers | `TestCrashBetweenWritesAndState`: checkout to main~3, then roll back state.json (with and without the dirstate) → status lists the changed files; `checkout --force` of @ → clean status and a tree equal to git (files the interrupted checkout created stay as untracked, as in git) | ✅ |
+
+**Summary:** the `xy` client can clone (full or sparse), and show status, diff, checkout, sparse add/remove/list, log, show, blame, cat, ls and cache stats/gc, all with `--json`. It keeps a content-addressed local cache with LRU eviction, a dirstate with git's racy-mtime rule, and crash-safe ordering (files → dirstate → state.json). Worth a look: `checkout --force` also restores locally modified files that the move doesn't touch, which is what makes `checkout -f @` a recovery tool. The sparse rules the spec left open are in Deviations (no add/remove on a full checkout; the last directory can't be removed). The blame line format now has git's opening parenthesis. go-git is used only for its .gitignore matcher (ADR-016, already in the stack). `make e2e` is added to the CI parity job.
 
 ### M4 — 2026-10-14
 
@@ -131,7 +145,7 @@ Verified on a fresh `git clone` of 3e549f4: `make tools && make up && make proto
 
 <!-- - YYYY-MM-DD: CreateChangeset 10 files on 1k-file tree: p50 X ms, p99 Y ms (M2.9) -->
 
-- - M5.8 `xy status` on an unchanged branchy checkout (289 files), after the first run: 1.2 ms (12 ms with -race); target < 200 ms.
+- 2026-10-14: `xy status` on an unchanged branchy checkout (289 files), after the first run: 0.9–1.2 ms (12 ms with -race); target < 200 ms (M5.8)
 - 2026-10-14: Blame RPC on branchy files (33 sampled, local, no -race): cold p50 15–46 ms (computes and stores the chain), warm p50 1.8–5.8 ms (target < 50 ms) (M4.10)
 - 2026-10-14: import external small repo spf13/cobra @adbc881 (1,106 commits, 114 merges, 1,861 blobs, 30.6 MB): 1.8 s ≈ 623 commits/s; verify-import --all 0 mismatches (50,483 files); verify 0 violations (M3)
 - 2026-10-14: import branchy via the binary into the dev DB with `fs://./data/objects` on the project drive: 14.4 s ≈ 139 commits/s — the FS store fsyncs every object and that drive is slow to fsync; the same import with the store in /tmp: 3.3 s ≈ 605 commits/s (M3)
@@ -141,9 +155,10 @@ Verified on a fresh `git clone` of 3e549f4: `make tools && make up && make proto
 ## Log
 
 <!-- - YYYY-MM-DD M0.2: skeleton dirs + cobra roots (commit abc1234) -->
-- - 2026-10-14 M5.10: `xy checkout <rev> [--force]` (accepts `@`, so `checkout -f @` discards local changes) and `xy sparse list|add|remove <dir>...` (cwd-relative dirs). Profile changes go through the checkout engine (reconcile), so dirty files being deleted or overwritten refuse with exit 4.
-- - 2026-10-14 M5.9: `xy log` (-r, -n, --oneline, path filter), `show`, `blame`, `cat` and `ls` (-R) as RPC wrappers with human and --json output. `@`/`@~N`/`@^N` resolve client-side; revisions default to `@` in a workspace, else `main`. `cat` and the others work outside a workspace with --server. Tests compare against git on tiny.
-- - 2026-10-14 M5.8: `xy status` (gitignore via go-git's matcher, nested files and negations; racy-mtime rule; parallel hashing; dirstate refresh) and `xy diff [paths]` (git-format unified diff from cached base blobs). `checkout --force` now also restores locally modified tracked files the move doesn't touch, so it recovers from an interrupted checkout. Crash simulation test passes.
+- 2026-10-14 M5.11: parity check `clone` (xy's client clones the tip in full and with 3 random sparse profiles; each working tree is compared with `git archive` — file set, content, exec bits, symlink targets): 100% on tiny, edge and branchy. `test/e2e` builds the real `xy` and drives clone, edit, status, diff, checkout (dirty refusal, --force), log, sparse add/remove/list and workspace-less cat against an in-process server; `make e2e` runs it, and CI runs it in the parity job.
+- 2026-10-14 M5.10: `xy checkout <rev> [--force]` (accepts `@`, so `checkout -f @` discards local changes) and `xy sparse list|add|remove <dir>...` (cwd-relative dirs). Profile changes go through the checkout engine (reconcile), so dirty files being deleted or overwritten refuse with exit 4.
+- 2026-10-14 M5.9: `xy log` (-r, -n, --oneline, path filter), `show`, `blame`, `cat` and `ls` (-R) as RPC wrappers with human and --json output. `@`/`@~N`/`@^N` resolve client-side; revisions default to `@` in a workspace, else `main`. `cat` and the others work outside a workspace with --server. Tests compare against git on tiny.
+- 2026-10-14 M5.8: `xy status` (gitignore via go-git's matcher, nested files and negations; racy-mtime rule; parallel hashing; dirstate refresh) and `xy diff [paths]` (git-format unified diff from cached base blobs). `checkout --force` now also restores locally modified tracked files the move doesn't touch, so it recovers from an interrupted checkout. Crash simulation test passes.
 - 2026-10-14 M5.7: client.Clone + `xy clone <server> <dir> [--repo --rev --sparse a,b] [--json]` (refuses a non-empty destination with exit 2, removes the directory it created on failure); full, sparse and older-revision clones of branchy match git
 - 2026-10-14 M5.6: checkout engine — scoped tree diff (equal subtrees skipped, out-of-scope trees never read) or reconcile on scope change, dirty check (modified tracked files, untracked files and non-empty directories in the way → exit 4 unless --force), fetch, apply (deletes + empty-dir pruning, then atomic writes, 0644/0755, symlinks via rename, type changes), dirstate, state.json last; matches git on every edge first-parent revision incl. file↔symlink↔dir
 - 2026-10-14 M5.5: client.Dirstate (XYLDS1 header + gob {written-at, entries sorted by path}, atomic Save stamping WrittenAtNs, bad/missing → ErrNoDirstate), RebuildDirstate (hash expected files; mismatches get MtimeNs 0), FileMode (git exec rule), HashFile (symlinks hash their target)
