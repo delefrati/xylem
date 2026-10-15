@@ -7,7 +7,7 @@
 ## Tasks
 
 - [x] **M6.1 `PutObjects`.** Server tier: decode, verify hash and size limits, `store.Put`, count stored and already-present. Clients upload **blobs only**, because trees are always built server-side. Reject any uploaded object whose kind isn't `blob` with `InvalidArgument`.
-- [ ] **M6.2 `CreateChangeset` RPC.** Adapter over `repo.CreateChangeset`. Committer = author for now (M9 sets it from auth). Map typed validation errors to `InvalidArgument` and missing blobs to `FailedPrecondition` with up to 20 ids in the message (05 §Error model).
+- [x] **M6.2 `CreateChangeset` RPC.** Adapter over `repo.CreateChangeset`. Committer = author for now (M9 sets it from auth). Map typed validation errors to `InvalidArgument` and missing blobs to `FailedPrecondition` with up to 20 ids in the message (05 §Error model).
 - [ ] **M6.3 Client `add` and `commit`.** Per 06: gather changes, upload missing blobs (`HasObjects` → `PutObjects` batches packed up to ~1 MiB per message), create the changeset, move `@`, update dirstate and `state.added`. Author resolution order per 06.
 - [ ] **M6.4 `repo.RebaseStack`.** Per 07: per-path rules (file-level conflicts), structural conflict mapping, skipping already-applied changes, `rebased-from` extra, and stack well-formedness checks. Unit-test every row of the conflict table plus FILE_DIRECTORY.
 - [ ] **M6.5 `repo.Land`.** CAS loop with jittered backoff, mainline rows and ref_log in the same transaction, `max_attempts`, and metrics (`xylem_land_attempts`, `xylem_land_conflicts_total`).

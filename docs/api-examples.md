@@ -217,7 +217,7 @@ echo "{\"objects\":[{\"id\":\"$BLOB\",\"data\":\"$DATA\"}]}" | $G -d @ $A xylem.
 { "alreadyPresent": 1 }
 ```
 
-Every `WriteService` RPC returns `Unimplemented` until the rest of the write path arrives (M6).
+`WriteService.CreateChangeset` is available; `Rebase` and `Land` return `Unimplemented` until M6.6. (Write examples are added with them.)
 
 ## Errors
 

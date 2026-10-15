@@ -84,12 +84,6 @@ func (r *Repo) CreateChangeset(ctx context.Context, req CreateRequest, opts Crea
 	if err != nil {
 		return nil, false, err
 	}
-	if len(cs.Parents) == 0 && !opts.AllowRoot {
-		if err := r.requireEmpty(ctx); err != nil {
-			return nil, false, err
-		}
-	}
-
 	// 4. Load parents (fails fast on unknown parents).
 	parentRows, err := r.source.Core(ctx, cs.Parents)
 	if err != nil {
@@ -125,6 +119,13 @@ func (r *Repo) CreateChangeset(ctx context.Context, req CreateRequest, opts Crea
 	// 7. Fast idempotency check.
 	if existing, err := r.existing(ctx, id); err != nil || existing != nil {
 		return existing, existing != nil, err
+	}
+	// A new root needs an empty repo (checked after step 7, so retrying the
+	// creation of an existing root is idempotent).
+	if len(cs.Parents) == 0 && !opts.AllowRoot {
+		if err := r.requireEmpty(ctx); err != nil {
+			return nil, false, err
+		}
 	}
 
 	// 8. Apply changes to the first parent's tree; store new trees first.
