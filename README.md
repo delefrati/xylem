@@ -7,7 +7,7 @@ A server-first version control system for large monorepos, built for always-onli
 - **Content-addressed everything.** Any tier can cache anything.
 - **O(change) commits.** No locks; `main` moves by compare-and-swap.
 
-> **Status:** planning complete, implementation starting at M0. See [`docs/roadmap.md`](docs/roadmap.md) and [`docs/progress.md`](docs/progress.md).
+> **Status:** the MVP (M0–M6) is implemented: git import, the read and write APIs, the `xy` client and concurrent land. See [`docs/roadmap.md`](docs/roadmap.md) and [`docs/progress.md`](docs/progress.md).
 
 ## How this repo is meant to be built
 
@@ -60,4 +60,33 @@ bin/xylemd version
 make down         # stop services (data volumes are kept)
 ```
 
-`make help` lists every target. The full demo (`make demo`) arrives with M6.
+`make help` lists every target.
+
+## Quickstart (5 minutes)
+
+`make demo` does all of this in one go, against a small fixture. By hand, with the 2,000-commit `branchy` fixture:
+
+```bash
+make tools up build                    # pinned tools, Postgres + MinIO, bin/xy and bin/xylemd
+bin/xylemd migrate
+make fixtures                          # synthetic git repos in testdata/fixtures/
+bin/xylemd import --git testdata/fixtures/branchy --branch main
+make run-server                        # leave running: gRPC :7400, HTTP :7401
+```
+
+In another terminal:
+
+```bash
+export PATH=$PWD/bin:$PATH XYLEM_AUTHOR="Your Name <you@example.com>"
+xy clone localhost:7400 /tmp/ws --sparse internal/api,docs   # only these dirs (and root files)
+cd /tmp/ws
+echo hi >> docs/file007.txt
+xy status && xy diff                   # local, from cached blobs
+xy commit -m "say hi"                  # a draft on the server; no push
+xy land                                # rebase onto main server-side, CAS main, check out the tip
+xy log --oneline -n 3
+xy blame docs/file007.txt
+xy cat -r main~5 internal/core/file002.txt   # out-of-scope files and old revisions via the API
+```
+
+Everything the client shows comes from the server's APIs; see [api-examples.md](docs/api-examples.md) for the same calls with grpcurl.

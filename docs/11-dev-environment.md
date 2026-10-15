@@ -65,7 +65,7 @@ volumes: { pgdata: {}, miniodata: {} }
 | `make test` | `go test ./...` (unit only, no Docker) |
 | `make test-integration` | `go test -tags integration ./...` |
 | `make parity` | Build, generate fixtures, run `go test -tags parity ./internal/parity/...` |
-| `make parity-external` | Same against `testdata/external/*` |
+| `make parity-external` | `scripts/fetch-external-fixtures.sh` (cobra and prometheus at pinned shas into `testdata/external/`), then the parity suite against them |
 | `make e2e` | `go test -tags e2e ./test/e2e/...` |
 | `make fuzz` | Loop over fuzz targets with `-fuzztime=$(FUZZTIME)` (default 30s) |
 | `make lint` | `golangci-lint run && buf lint` |
@@ -73,7 +73,7 @@ volumes: { pgdata: {}, miniodata: {} }
 | `make fixtures` | Generate synthetic fixture repos into `testdata/fixtures/` |
 | `make bench` | Run Go benchmarks (`-run=^$ -bench=. -benchmem`), integration ones included when services are up |
 | `make run-server` | `bin/xylemd server` with dev env vars |
-| `make demo` | `up` → migrate → import `edge` fixture → clone it into `/tmp/xylem-demo` |
+| `make demo` | `up` → build → migrate → import `edge` into repo `demo` → server on :7410 → clone into `/tmp/xylem-demo`, edit, status, diff, commit, land, log, blame → sparse clone of `dup/` |
 
 ## Server configuration (flags with env fallbacks)
 
@@ -103,16 +103,19 @@ golangci-lint **v2** config format (`version: "2"`):
 - Conventional commits: `feat(m3): import octopus merges`, `fix(derived): …`, `docs: …`, `test: …`.
 - Generated code (`gen/`) is committed. CI checks it's up to date (`make proto && git diff --exit-code`).
 
-## Local demo walkthrough (target state after M6)
+## Local demo walkthrough
+
+`make demo` (scripts/demo.sh) runs this end to end against the `edge` fixture in a `demo` repository, with its own server on :7410. By hand, with `branchy`:
 
 ```bash
 make up && make build && bin/xylemd migrate
 make fixtures
 bin/xylemd import --git testdata/fixtures/branchy --branch main
-bin/xylemd server &
-bin/xy clone localhost:7400 /tmp/ws1 --sparse dir03,dir07
-cd /tmp/ws1 && echo hi >> dir03/file1.txt
-bin/xy status && bin/xy diff
-bin/xy commit -m "say hi" && bin/xy land
-bin/xy log -n 3 && bin/xy blame dir03/file1.txt
+make run-server &                     # gRPC :7400, HTTP :7401
+export XYLEM_AUTHOR="Your Name <you@example.com>"
+bin/xy clone localhost:7400 /tmp/ws1 --sparse internal/api,docs
+cd /tmp/ws1 && echo hi >> docs/file007.txt
+xy status && xy diff                  # with bin/ on PATH
+xy commit -m "say hi" && xy land
+xy log -n 3 --oneline && xy blame docs/file007.txt
 ```

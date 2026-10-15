@@ -78,10 +78,11 @@ bench: ## Go benchmarks; integration ones too when services are up
 
 .PHONY: parity parity-external e2e fixtures run-server demo
 parity: ## Git parity suite: import each fixture, serve it in process, compare every check with git
-	go test -tags parity -count=1 -timeout 20m -v -run TestParity ./internal/parity/...
+	go test -tags parity -count=1 -timeout 20m -v -run '^TestParity$$' ./internal/parity/...
 
-parity-external: ## Git parity suite on testdata/external (M4)
-	@echo "parity-external: not yet implemented (M4)"
+parity-external: ## Git parity suite on real repos (cobra, prometheus) fetched into testdata/external
+	scripts/fetch-external-fixtures.sh
+	go test -tags parity -count=1 -timeout 120m -v -run TestParityExternal ./internal/parity/...
 
 e2e: ## CLI end-to-end tests: the real xy binary against an in-process server (needs make up)
 	go test -tags e2e -count=1 -timeout 10m ./test/e2e/...
@@ -93,8 +94,8 @@ fixtures: ## Generate the tiny, edge and branchy fixture repos into testdata/fix
 	scripts/make-fixture-repo.sh $(FIXTURES)/edge edge
 	go run ./scripts/genrepo $(FIXTURES)/branchy
 
-run-server: ## Run bin/xylemd server with dev settings (M4)
-	@echo "run-server: not yet implemented (M4)"
+run-server: build ## Run bin/xylemd server with dev settings (gRPC :7400, HTTP :7401)
+	$(BIN)/xylemd server
 
-demo: ## Full local demo (M6)
-	@echo "demo: not yet implemented (M6)"
+demo: ## Local walkthrough: import edge, serve it on :7410, clone, edit, commit, land (11)
+	scripts/demo.sh

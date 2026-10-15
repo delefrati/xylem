@@ -81,7 +81,11 @@ func (g *globals) moveCmd(cmd *cobra.Command, verb string, move func(w *client.W
 			if res.Stack == 0 {
 				return printf(o, "@ at %s (main)\n", res.Top.Short(12))
 			}
-			return printf(o, "%s %d changesets (%d already on main); @ at %s\n", verb, len(res.Moved), res.Skipped, res.Top.Short(12))
+			noun := "changesets"
+			if len(res.Moved) == 1 {
+				noun = "changeset"
+			}
+			return printf(o, "%s %d %s (%d already on main); @ at %s\n", verb, len(res.Moved), noun, res.Skipped, res.Top.Short(12))
 		})
 	})
 }

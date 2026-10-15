@@ -5,11 +5,15 @@ package client_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	"golang.org/x/sync/errgroup"
+
+	xylemv1 "github.com/delefrati/xylem/gen/xylem/v1"
 
 	"github.com/delefrati/xylem/internal/client"
 	"github.com/delefrati/xylem/internal/server/servertest"
@@ -146,5 +150,66 @@ func TestStackSyncLand(t *testing.T) {
 	}
 	if _, err := b.w.Land(ctx, b.f); client.ExitCode(err) != client.ExitDirty {
 		t.Errorf("dirty land: %v", err)
+	}
+}
+
+// TestTwentyWorkspacesLand is the MVP check (01 §MVP is done when): twenty
+// workspaces each commit a non-conflicting change and land at the same time;
+// all land and main stays a valid first-parent chain with all twenty.
+func TestTwentyWorkspacesLand(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	s := servertest.Start(t, "tiny")
+	const n = 20
+	wss := make([]*ws, n)
+	for i := range wss {
+		wss[i] = cloneWS(t, s, fmt.Sprintf("w%02d", i))
+		wss[i].write(fmt.Sprintf("work/w%02d.txt", i), fmt.Sprintf("workspace %d\n", i))
+		wss[i].commit(fmt.Sprintf("w%02d", i))
+	}
+	start := make(chan struct{})
+	var g errgroup.Group
+	attempts := make([]int, n)
+	for i, x := range wss {
+		g.Go(func() error {
+			<-start
+			res, err := x.w.Land(ctx, x.f)
+			if err != nil {
+				return fmt.Errorf("w%02d: %w", i, err)
+			}
+			attempts[i] = res.Attempts
+			return nil
+		})
+	}
+	close(start)
+	if err := g.Wait(); err != nil {
+		t.Fatal(err)
+	}
+	t.Logf("CAS attempts per land: %v", attempts)
+
+	// main's first-parent chain has the twenty lands on top of the import.
+	conn := dial(t, s.Addr)
+	resp, err := conn.Repo.Log(ctx, &xylemv1.LogRequest{Revision: "main", Page: &xylemv1.PageRequest{PageSize: n + 1}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	subjects := map[string]bool{}
+	for i, c := range resp.GetChangesets()[:n] {
+		subjects[string(c.GetMessage())] = true
+		if !c.GetOnMainline() || c.GetFirstParentDepth() != resp.GetChangesets()[n].GetFirstParentDepth()+uint64(n-i) {
+			t.Errorf("changeset %d of the log: depth %d, on mainline %v", i, c.GetFirstParentDepth(), c.GetOnMainline())
+		}
+	}
+	if len(subjects) != n || string(resp.GetChangesets()[n].GetId()) != string(s.TipID[:]) {
+		t.Errorf("main has %d distinct lands above the imported tip", len(subjects))
+	}
+	// A sync brings every workspace's file to the first one.
+	if _, err := wss[0].w.Sync(ctx, wss[0].f); err != nil {
+		t.Fatal(err)
+	}
+	for i := range n {
+		if got := wss[0].read(fmt.Sprintf("work/w%02d.txt", i)); got != fmt.Sprintf("workspace %d\n", i) {
+			t.Errorf("work/w%02d.txt = %q", i, got)
+		}
 	}
 }

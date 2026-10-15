@@ -4,12 +4,13 @@ Maintained by the implementing agent. Newest entries first within each section.
 
 ## Status
 
-- **Current milestone:** M6 — Write path and land
+- **Current milestone:** M6 — Write path and land (complete, ⛔ MVP checkpoint: awaiting human review)
 - **Last checkpoint approved by human:** M5 — 2026-10-14 (M4, M3, M2, M1, golden vectors and M0 approved 2026-10-14)
-- **Blocked on:** —
+- **Blocked on:** human review of M6 / the MVP, and Q-004 (blame parity on real repos)
 
 ## Open questions (for the human)
 
+- [ ] Q-004 (M6.9): Blame parity on real repositories is just under the 99% bar: prometheus (18,923 commits) 98.86%, cobra 98.19%; every other check is 100% on both. Both blames are valid; they differ on lines that can be matched several equally good ways (blank and repeated lines). ADR-021 (Proposed) added git-style compaction, which raised cobra from 94.6% to 97.6–98.2%. The rest comes from parts of git's xdiff that make its diff non-minimal or tie-break differently: it discards lines that are unique or very frequent before the search, cuts the search short on costly diffs, and applies the indent heuristic. Options: (a) reproduce those xdiff behaviors in internal/diff (closer to git, but xdiff is LGPL-2.1: a reimplementation must avoid copying its code); (b) accept ≥ 98% blame parity on real repos (the synthetic fixtures stay at 100%) and record that as the MVP bar; (c) keep 99% and treat MVP item 1 as open. Recommendation: (b) now, with (a) as a post-MVP task. → answer:
 - [x] Q-003 (M1.8 ⛔): Approve the golden vectors in `testdata/golden/README.md`? Approval freezes the encodings; later changes need an ADR. → answer: approved 2026-10-14 (incl. `blob_hello` = "hello\n", synthetic sizes in `tree_sizes`, merge changes vs first parent)
 - [x] Q-001 (M0.1): GitHub owner for the module path (`github.com/<owner>/xylem`)? → answer: `delefrati` (module `github.com/delefrati/xylem`)
 - [x] Q-002 (M0.5): License (default MIT)? → answer: MIT
@@ -17,6 +18,7 @@ Maintained by the implementing agent. Newest entries first within each section.
 ## Deviations from spec
 
 <!-- - YYYY-MM-DD M2.4: <what changed, why, doc updated: 04-derived-data.md> -->
+- 2026-10-14 M6.9: `make demo` imports into a separate `demo` repository and serves it on :7410/:7411 so it neither moves the dev `default` repo nor clashes with a running `make run-server`; on re-runs it keeps the earlier import (main has demo lands on top, which the mirror importer refuses to move). `make parity` now runs only `^TestParity$`; externals run via `make parity-external`.
 - 2026-10-14 M6.7: `xy land` refuses with local changes (exit 4), like `sync` (06 only says so for sync): landing then checking out the new tip could otherwise fail on a dirty file after the land already happened. Untracked files don't count.
 - 2026-10-14 M6.5: the land metrics (xylem_land_attempts, xylem_land_conflicts_total) are recorded by the Land RPC adapter (M6.6), where the server's Prometheus registry lives; repo.Land reports attempts and conflicts in its result, so package repo stays free of metrics.
 - 2026-10-14 M6.4: rules 07 leaves implicit: when a stack entry replaced a directory with a file, a base directory counts as absent (add semantics); a delete where onto now has a directory is FILE_DIRECTORY; if both content and mode conflict, the conflict is reported as CONTENT; a merged result equal to onto's entry is dropped. A rebased changeset drops the git-sha extra (changesets.git_sha is unique per repo and the rebased changeset is no longer that git commit). The rebased committer is the entry's author until M9 brings a caller identity.
@@ -59,6 +61,39 @@ Maintained by the implementing agent. Newest entries first within each section.
 - 2026-10-14 M0.2: client CLI lives in `cmd/xy` (M0.2, binary name), not `cmd/xylem` as the layout tree said; doc updated: 02-architecture.md
 
 ## Milestone results
+
+### M6 — 2026-10-14 (MVP)
+
+Verified on the M6.9 commit:
+- `make up && make check && make parity && make e2e` → exit 0.
+- `go test -tags integration -race -count=5 -run TestLandConcurrency ./internal/repo/...` → ok (5 consecutive runs, 44 s).
+- `make demo` → ok, and re-runnable.
+- `make parity-external` → every check 100% except blame (see Q-004).
+- `xylemd verify <repo> --all --objects` → 0 violations on the dev repos default, demo (after two demo lands), quickstart (branchy plus a land) and write-demo.
+
+| Acceptance criterion | Evidence | Result |
+|---|---|---|
+| Every item of 01 §"MVP is done when" is demonstrated and recorded | MVP checklist below: three of four items fully met; item 1 is met except blame at 98.86% (needs 99%) | ⚠️ Q-004 |
+| Concurrency suite passes 5 consecutive runs (`-count=5 -race`) | TestLandConcurrency{Disjoint,SameFile,Crash}: ok ×5 | ✅ |
+| `xylemd verify --all` passes after the concurrency suite | each concurrency test ends with repo.Verify(objects) → 0 violations; `xylemd verify` 0 violations on every dev repo after demo and quickstart lands | ✅ |
+| e2e: two workspaces edit different files → both land; then the same file → the second gets exit 3 and its workspace is untouched | `make e2e` TestConcurrentWorkspaces (real `xy` binary): both land; second same-file land exits 3, README and state.json unchanged, status clean | ✅ |
+
+**MVP checklist (01-overview.md §"MVP is done when"):**
+
+| Item | Evidence | Result |
+|---|---|---|
+| A real repo (≥ 10k commits) imports and passes the tree, log, blame, diff and merge-base parity checks | `make parity-external`: prometheus @6e69e84, 18,923 commits, imported in 43 s (59,760 blobs, 2.6 GB). 100% on tree (101/101), log (1/1), path log (60/60), diff names (131/131), diff content (59,955/59,955), merge-base (200/200), is-ancestor (500/500), read file (200/200) and clone (1,819/1,819 files). **Blame: 9,928/10,042 = 98.86%** (needs 99%) | ⚠️ blame (Q-004) |
+| `xy clone --sparse <dir>` produces a working tree byte-identical to git's for those dirs, fetching only objects under them | clone parity row 100% on tiny, edge, branchy, cobra and prometheus (full + 3 random sparse profiles each, vs `git archive`); TestFetchFullAndSparse: the sparse fetch reads exactly the trees on the path plus in-scope blobs (server counter) | ✅ |
+| Twenty concurrent workspaces can each commit and `xy land` non-conflicting changes, all land, and `main` stays a valid first-parent chain | TestTwentyWorkspacesLand (client, under -race): 20 clones commit and land at once and all land, with 1–6 CAS attempts each (default max 10). main's log shows the 20 at consecutive depths above the import, and a sync brings all 20 files. Also at repo level: 20×50 lands in TestLandConcurrencyDisjoint | ✅ |
+| `make check` is green: lint, unit, integration and race tests | `make check` → exit 0 | ✅ |
+
+**Summary:** the write path is in. Clients upload verified blobs (`PutObjects`, blobs only) and create drafts server-side (`CreateChangeset`). `xy add/commit/stack/sync/land` work end to end. Rebase follows 07's file-level conflict table. Land is a CAS loop with jittered backoff that keeps ref, mainline and ref log in one transaction. Conflicts come back in the response and give exit 3. `make demo`, `make run-server`, `make parity-external` and a README quickstart are real now. Worth a look:
+- **Q-004:** blame parity on real repos is 98–98.9%; ADR-021 (Proposed) adds git-style diff compaction and bumps the blame kind to version 2.
+- `land` refuses with local changes, like `sync`.
+- Rebased changesets drop the `git-sha` extra.
+- Land metrics are recorded in the RPC adapter.
+- A client stats bug (blobs fetched during checkout were never counted) was found and fixed.
+- `repo.CreateChangeset` checks "new root needs an empty repo" after the idempotency check.
 
 ### M5 — 2026-10-14
 
@@ -148,6 +183,7 @@ Verified on a fresh `git clone` of 3e549f4: `make tools && make up && make proto
 
 <!-- - YYYY-MM-DD: CreateChangeset 10 files on 1k-file tree: p50 X ms, p99 Y ms (M2.9) -->
 
+- 2026-10-14: import prometheus @6e69e84 (18,923 commits, 59,760 blobs, 2.6 GB) in process into a tmpfs FS store: 43 s ≈ 436 commits/s; the parity suite on it took 1 m 55 s (M6.9)
 - 2026-10-14: 1,000 concurrent lands (20 goroutines × 50, disjoint paths, each rebased from a stale base): 2.96 CAS attempts per land on average, 9.1 s under -race on local Postgres (M6.8)
 - 2026-10-14: `xy status` on an unchanged branchy checkout (289 files), after the first run: 0.9–1.2 ms (12 ms with -race); target < 200 ms (M5.8)
 - 2026-10-14: Blame RPC on branchy files (33 sampled, local, no -race): cold p50 15–46 ms (computes and stores the chain), warm p50 1.8–5.8 ms (target < 50 ms) (M4.10)
@@ -159,6 +195,7 @@ Verified on a fresh `git clone` of 3e549f4: `make tools && make up && make proto
 ## Log
 
 <!-- - YYYY-MM-DD M0.2: skeleton dirs + cobra roots (commit abc1234) -->
+- 2026-10-14 M6.9: `make demo` (scripts/demo.sh: import edge into repo demo, server on :7410, clone/edit/status/diff/commit/stack/land/log/blame, sparse clone; re-runnable), `make run-server`, `make parity-external` (scripts/fetch-external-fixtures.sh pins cobra @adbc881 and prometheus @6e69e84; TestParityExternal), README quickstart (verified), 11's walkthrough updated. Diff compaction (ADR-021, Proposed) with git-compared tests; blame kind v2. TestTwentyWorkspacesLand for the MVP item. MVP checklist recorded under M6 results.
 - 2026-10-14 M6.8: concurrency suite TestLandConcurrency{Disjoint,SameFile,Crash} (07 requirements 1–3, run under -race): 20×50 disjoint lands all succeed with exactly 1,000 new mainline rows and every file in the final tree; same-file races (10 rounds) land exactly one and conflict the other; a crash before the CAS leaves only the rebased orphan draft and main unchanged. Each test ends with repo.Verify (objects included). Passed 5 consecutive runs (-count=5 -race, 46 s).
 - 2026-10-14 M6.7: `xy stack` (fp walk from @ to the first on_mainline changeset, ≤ 1000, newest first), `xy sync` (no drafts → checkout main; drafts → Rebase onto main, checkout the rebased top) and `xy land` (Land, checkout the new tip). Conflicts → exit 3 with a kind/path table (or --json) and nothing moved. Fixed a client stats bug: Ensure's deferred counter read 0 (arguments evaluate at defer time), so blobs fetched during checkout weren't counted. Tests assert no refetch of cached blobs after land/sync; e2e covers M6's two-workspace scenario.
 - 2026-10-14 M6.6: WriteService Rebase (onto is a revision) and Land (target_ref default main, max_attempts ≤ 1000) adapters; conflicts (kind, base/ours/theirs blobs, conflicting_changeset) in the response body; exhaustion → Aborted. Metrics xylem_land_attempts (histogram) and xylem_land_conflicts_total. api-examples.md gains a WriteService section, verified on a scratch repo (write-demo) in the dev DB.
